@@ -1,0 +1,31 @@
+# Rutas
+dev_data_dir: "../data/data/"
+eval_data_dir: "../data/data" # El query selecciona la carpeta de test
+dev_features_dir: "../data/Features/melspec_313_128"
+eval_features_dir: "../data/Features/melspec_313_128"
+model_dir: "./model_output"
+results_dir: "./results"
+# Audio
+feature:
+  n_mels: 128
+  n_fft: 1024
+  hop_length: 512
+  frames: 5
+
+# Aleatoriedad
+seed: 42
+
+# Modelo
+model:
+  latent_dim: 8
+  hidden_dims: 128
+  
+# Entrenamiento
+train:
+  batch_size: 32
+  epochs: 50
+  learning_rate: 0.001
+  validation_split: 0.1
+  # Pesos de Loss (Requisito clave)
+  w_recon: 1.0
+  w_kl: 0.05

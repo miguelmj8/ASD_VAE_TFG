@@ -3,14 +3,15 @@ dev_data_dir: "../data/data/"
 eval_data_dir: "../data/data" # El query selecciona la carpeta de test
 dev_features_dir: "../data/Features/melspec_313_128"
 eval_features_dir: "../data/Features/melspec_313_128"
-model_dir: "./model_output"
-results_dir: "./results"
+model_dir: "./model_output/recon0kl1"
+results_dir: "./results/recon0kl1"
 # Audio
 feature:
   n_mels: 128
   n_fft: 1024
-  hop_length: 512
-  frames: 5
+  hop_length: 512 # Numero de muestras que se saltan entre frames del espectrograma
+  frames: 5 # Numero de frames del espectrograma por vector
+  n_hop_frames: 4 # Numero de frames que se saltan entre vectores
 
 # Aleatoriedad
 seed: 42
@@ -19,13 +20,13 @@ seed: 42
 model:
   latent_dim: 8
   hidden_dims: 128
-  
+
 # Entrenamiento
 train:
   batch_size: 32
-  epochs: 50
+  epochs: 30
   learning_rate: 0.001
   validation_split: 0.1
   # Pesos de Loss (Requisito clave)
-  w_recon: 1.0
-  w_kl: 0.05
+  w_recon: 0.0
+  w_kl: 1.0

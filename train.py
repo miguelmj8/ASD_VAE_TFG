@@ -14,7 +14,7 @@ if __name__ == "__main__":
     # "development": mode == True
     # "evaluation": mode == False
     # input_type: 'wav' or 'npy' (default 'wav')
-    mode, input_type = com.command_line_chk()
+    mode, input_type, _ = com.command_line_chk()
     if mode is None:
         sys.exit(-1)
     # mode = True  # for debug
@@ -56,13 +56,13 @@ if __name__ == "__main__":
                                            mode=mode,
                                            ext=input_type)
         data = com.file_list_to_data(files,
-                                 msg="generate train_dataset",
-                                 n_mels=params.feature.n_mels,
-                                 n_frames=params.feature.frames,
-                                 n_hop_frames=params.feature.hop_length,
-                                 n_fft=params.feature.n_fft,
-                                 hop_length=params.feature.hop_length,
-                                 ext=input_type)
+                                     msg="generate train_dataset",
+                                     n_mels=params.feature.n_mels,
+                                     n_frames=params.feature.frames,
+                                     n_hop_frames=params.feature.n_hop_frames,
+                                     n_fft=params.feature.n_fft,
+                                     hop_length=params.feature.hop_length,
+                                     ext=input_type)
 
         # number of vectors for each wave file
         n_vectors_ea_file = int(data.shape[0] / len(files))

@@ -24,6 +24,7 @@ def command_line_chk():
     parser.add_argument('-e', '--eval', action='store_true', help="run mode Evaluation")
     parser.add_argument('-i', '--input', type=str, choices=['npy', 'wav'], default='wav',
                         help="Fuente de datos: 'npy' para cargar preprocesados, 'wav' para calcular espectrogramas")
+    parser.add_argument('-m', '--machine_type', type=str, choices=['bearing','fan','valve'], help="Machine type only used for tsne visualization")
 
     args = parser.parse_args()
     if args.version:
@@ -38,7 +39,7 @@ def command_line_chk():
         flag = None
         print("incorrect argument")
         print("please set option argument '--dev' or '--eval'")
-    return flag, args.input
+    return flag, args.input, args.machine_type
 
 def load_audio(file_path):
     y, sr = librosa.load(file_path, sr = None)
@@ -282,7 +283,9 @@ def file_list_to_data(file_list,
         vectors = vectors[: : n_hop_frames, :]
         if idx == 0:
             data = np.zeros((len(file_list) * vectors.shape[0], dims), float)
+            # print(f"Total data shape: {data.shape} vector shape: {vectors.shape} vector shape[0]: {vectors.shape[0]}")
         data[vectors.shape[0] * idx : vectors.shape[0] * (idx + 1), :] = vectors
+        # print(f"dims = {dims} Vector shape {vectors.shape}")
 
     return data
 
@@ -334,10 +337,11 @@ def file_to_vectors(file_name,
     vectors = np.zeros((n_vectors, dims))
     for t in range(n_frames):
         vectors[:, n_mels * t : n_mels * (t + 1)] = logmelspec[:, t : t + n_vectors].T
+    # print(f"File {file_name} -> {vectors.shape[0]} vectors of dimension {vectors.shape[1]} total {vectors.shape}")
 
     return vectors
 
-def select_dirs(params, mode, input_type):
+def select_dirs(params, mode, input_type ='wav'):
     """
     params : easydict
         baseline.yaml data

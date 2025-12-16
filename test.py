@@ -27,10 +27,10 @@ def save_csv(save_file_path, save_data):
 
 if __name__ == "__main__":
     # check mode
-    # "development": mode == True | Guarda valores de z, kld y reconst_loss para cada frame
-    # "evaluation": mode == False | Calcula metricas usando una puntuacion de anomalia calculada con los valores guardados en development
+    # "development": mode == True | Coge datos validacion
+    # "evaluation": mode == False | Datos de test
     # input_type: 'wav' or 'npy' (default 'wav')
-    mode, input_type = com.command_line_chk()
+    mode, input_type, _ = com.command_line_chk()
     if mode is None:
        sys.exit(-1)
     # mode = True  # for debug
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     # make output result directory
     os.makedirs(params.results_dir, exist_ok=True)
 
-    # Selecciona todas las carpetas dentro de eval_data_dir
+    # Selecciona todas las carpetas dentro de data/data (o data/features)
     dirs = com.select_dirs(params=params, mode=mode, input_type=input_type)
 
     # Initialize lines in csv for AUC and pAUC
@@ -54,9 +54,9 @@ if __name__ == "__main__":
         print("=========================================")
         machine_type = Path(target_dir).parts[-1]
         # machine_type = Path(target_dir).parts[-2]
-        if machine_type != "valve":
-            print(machine_type)
-            continue
+        # if machine_type != "bearing":
+        #     print(machine_type)
+        #     continue
         print(f'==== machine type: {machine_type} target_dir: {target_dir} ====')
         # machine_type = os.path.split(target_dir)[1]
         print(f'==== Start inference [{machine_type}] with {torch.cuda.device_count()} GPU(s). ====')
@@ -92,10 +92,13 @@ if __name__ == "__main__":
                                      msg="generate train_dataset",
                                      n_mels=params.feature.n_mels,
                                      n_frames=params.feature.frames,
-                                     n_hop_frames=params.feature.hop_length,
+                                     n_hop_frames=params.feature.n_hop_frames,
+                                     n_fft=params.feature.n_fft, # Usar el mismo que en train
                                      hop_length=params.feature.hop_length,
                                      ext=input_type)
         N_vectors_per_file = int(data.shape[0] / len(files)) # nºvectors por archivo
+        # print(f"N_vectors_per_file: {N_vectors_per_file} shape data: {data.shape} nfiles: {len(files)}")
+
         # nºfila de data // nºvectors por archivo = indice de archivo (y de label)
         # Create a DataLoader for batching
         # dataset = torch.utils.data.TensorDataset(torch.tensor(data, dtype=torch.float32),
@@ -106,11 +109,14 @@ if __name__ == "__main__":
        
        #QUITAR ESTE IF MODE. SOLO GUARDO KLD Y RECONST LOSS EN MODO DEV
         # if mode: # Modo development datos validacion. Guardar latents y losses por frame y calcula sus metricas
-        mu_values_path = os.path.join(params.results_dir, f'mu_values_{machine_type}.npy') # Almacena los valores de z por frame
-        kld_path = os.path.join(params.results_dir, f'kld_{machine_type}.csv') # Almacena los valores de kld por frame
-        reconst_loss_path = os.path.join(params.results_dir, f'reconst_loss_{machine_type}.csv') # Almacena los valores de reconst_loss por frame
-        anomaly_scores_path = os.path.join(params.results_dir, f'anomaly_scores_val_{machine_type}.csv') # Almacena los valores de puntuacion de anomalia por audio
-        metrics_path = os.path.join(params.results_dir, f'metrics_val_{machine_type}.csv') # AUC, f2score... por tipo de maquina (y por seccion)
+        mu_values_path = os.path.join(params.results_dir,
+                                      'val' if mode else 'test',
+                                      machine_type,
+                                      f'mu_values_{machine_type}.npy') # Almacena los valores de z por frame
+        kld_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'kld_{machine_type}.csv') # Almacena los valores de kld por frame
+        reconst_loss_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'reconst_loss_{machine_type}.csv') # Almacena los valores de reconst_loss por frame
+        anomaly_scores_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'anomaly_scores_val_{machine_type}.csv') # Almacena los valores de puntuacion de anomalia por audio
+        metrics_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'metrics_val_{machine_type}.csv') # AUC, f2score... por tipo de maquina (y por seccion)
 
         all_mu = []
         all_kld = []
@@ -120,7 +126,7 @@ if __name__ == "__main__":
             for x in dataloader:
                 x = x[0].to(device)
                 reconstructed, z, mu, logvar = model(x) # Forward
-
+                # print(mu.shape)
                 # --- Pérdida por elemento (frame) ---
                 # Reconstruction loss por elemento
                 reconst_loss = F.mse_loss(reconstructed, x, reduction='none')
@@ -129,21 +135,24 @@ if __name__ == "__main__":
                 # KLD por elemento
                 kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1) # shape: [batch_size]
 
-                all_mu.append(mu.cpu().numpy())
-                all_kld.append(kld.cpu().numpy())
-                all_reconst_loss.append(reconst_loss.cpu().numpy())
+                all_mu.append(mu.cpu())
+                all_kld.append(kld.cpu())
+                all_reconst_loss.append(reconst_loss.cpu())
 
-            all_mu = np.concatenate(all_mu)     
+            all_mu = torch.cat(all_mu, dim=0).numpy()
+            os.makedirs(os.path.dirname(mu_values_path), exist_ok=True)  # crea carpetas intermedias
             np.save(mu_values_path, all_mu)
 
             if mode: # Modo development guardo tambien losses
-                all_kld = np.concatenate(all_kld)
-                all_reconst_loss = np.concatenate(all_reconst_loss)
+                all_kld = torch.cat(all_kld, dim=0).numpy()
+                all_reconst_loss = torch.cat(all_reconst_loss, dim=0).numpy()
 
+            os.makedirs(os.path.dirname(kld_path), exist_ok=True)  # crea carpetas intermedias
             np.savetxt(kld_path, all_kld, delimiter=",")
+            os.makedirs(os.path.dirname(reconst_loss_path), exist_ok=True)  # crea carpetas intermedias
             np.savetxt(reconst_loss_path, all_reconst_loss, delimiter=",")
 
-            audio_scores_list = []
+            anomaly_scores_list = []
             audio_label_list = labels
 
             start_idx = 0
@@ -151,27 +160,27 @@ if __name__ == "__main__":
             for label in labels:
                 end_idx = start_idx + N_vectors_per_file
                 # Anomaly score = media de frames
-                score = np.mean(a_RECONST*all_reconst_loss[start_idx:end_idx] + a_KLD*all_kld[start_idx:end_idx])
-                audio_scores_list.append(score)
+                anomaly_score = np.mean(a_RECONST*all_reconst_loss[start_idx:end_idx] + a_KLD*all_kld[start_idx:end_idx])
+                anomaly_scores_list.append(anomaly_score)
                 # audio_label_list.append(label)
                 start_idx = end_idx
-                print(f"Processed file {len(audio_scores_list)}/{len(files)}")
+                # print(f"Processed file {len(anonmaly_scores_list)}/{len(files)}")
 
-            audio_scores_array = np.array(audio_scores_list)
+            anomaly_scores_array = np.array(anomaly_scores_list)
             audio_label_array = np.array(audio_label_list)
 
             np.savetxt(
                 anomaly_scores_path,
-                np.column_stack([audio_scores_array, audio_label_array.astype(int)]),
+                np.column_stack([anomaly_scores_array, audio_label_array.astype(int)]),
                 delimiter=",",
                 header="score,label",
                 comments=""
             )
 
             # === Métricas ===
-            auc = roc_auc_score(audio_label_array, audio_scores_array)
-            threshold = np.median(audio_scores_array)
-            f2 = fbeta_score(audio_label_array, audio_scores_array > threshold, beta=2)
+            auc = roc_auc_score(audio_label_array, anomaly_scores_array)
+            threshold = np.median(anomaly_scores_array)
+            f2 = fbeta_score(audio_label_array, anomaly_scores_array > threshold, beta=2)
 
             with open(metrics_path, "w") as f:
                 f.write("AUC,F2,threshold\n")
@@ -179,6 +188,3 @@ if __name__ == "__main__":
 
             print(f"[OK] Evaluación completada para {machine_type}")
             print(f"AUC = {auc:.4f}, F2 = {f2:.4f}, Threshold = {threshold:.4f}")
-
-
-        # model.eval()  # Opcional, pero recomendado para inferencia

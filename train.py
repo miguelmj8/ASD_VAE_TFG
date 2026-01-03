@@ -30,6 +30,9 @@ if __name__ == "__main__":
 
     for target_dir in dirs:
         machine_type = os.path.split(target_dir)[1]
+        # if machine_type != "valve":
+        #     print(machine_type)
+        #     continue
         print(f'==== Start training [{machine_type}] with {torch.cuda.device_count()} GPU(s). ====')
 
         # derive model dims from parameters
@@ -84,25 +87,43 @@ if __name__ == "__main__":
         generator = torch.Generator()
         generator.manual_seed(params.seed)
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=params.train.batch_size, shuffle=True, generator=generator)
+      
+        train_loss_path = os.path.join(params.model_dir, 'train', f'train_loss_{machine_type}.csv')
+        all_loss = []
+      
         for epoch in range(params.train.epochs):
+            epoch_loss = 0.0 # para guardar loss por epoch
+            num_batches = 0.0
             for batch in tqdm(dataloader):
                 optimizer.zero_grad()
                 x = batch[0].to(device)
 
                 # Forward pass - usar forward_all que retorna (recon_x, z, mu, logvar)
-                reconstructed, z, mu, logvar = model(x)
+                # reconstructed, z, mu, logvar = model(x) # para VAE
+                reconstructed, mu = model(x) # para AE
+
 
                 # Compute the loss
                 a_RECONST = params.train.w_recon
                 a_KLD = params.train.w_kl
-                reconst_loss, kld = vae_model.VAE_loss_function(reconstructed, x, mu, logvar, x_dim=x_dim)
-                loss = a_RECONST * reconst_loss + a_KLD * kld
+                # reconst_loss, kld = vae_model.VAE_loss_function(reconstructed, x, mu, logvar, x_dim=x_dim) # Para VAE
+                # loss = a_RECONST * reconst_loss + a_KLD * kld # Para VAE
+                loss = vae_model.AE_loss_function(reconstructed, x, x_dim=x_dim) # Para AE
 
                 # Backward pass and optimization
                 loss.backward()
                 optimizer.step()
 
-            print(f'Epoch [{epoch+1}/{params.train.epochs}], Loss: {loss.item():.4f}') # Imprime la loss del ultimo item de cada epoch
+                epoch_loss += loss.item()
+                num_batches += 1.0
+
+            all_loss.append(epoch_loss / num_batches) # loss medio por epoch
+            # CAMBIAR PRINT PARA QUE SALGA LA MEDIA
+            print(f'Epoch [{epoch+1}/{params.train.epochs}], Loss: {all_loss[-1]:.4f}') # Imprime la loss media de cada epoch
+
+        all_loss = np.array(all_loss)
+        os.makedirs(os.path.dirname(train_loss_path), exist_ok=True)
+        np.savetxt(train_loss_path, all_loss, delimiter=",")
 
         # Save model
         torch.save(model, model_file_path)

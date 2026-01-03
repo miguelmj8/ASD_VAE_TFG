@@ -16,11 +16,14 @@ params = com.yaml_load('parameters.yaml')
 # EJECUCION (mio)
     #--machine_type valve
 def main(mode, machine_type):
-    _, labels = com.file_list_generator(target_dir=os.path.join(params.eval_data_dir, machine_type),
+    files, labels = com.file_list_generator(target_dir=os.path.join(params.eval_data_dir, machine_type),
                                         section_name="*",
                                         dir_name="test",
                                         mode=mode,
                                         ext='wav')
+    archivos = [os.path.basename(f) for f in files]
+    sections = np.array([f.split("_")[1] for f in archivos], dtype=int)
+
     # ============================
     # Load mu values
     # ============================
@@ -28,16 +31,18 @@ def main(mode, machine_type):
     # mu = np.load(os.path.join(params.results_dir, f'mu_values_{machine_type}.npy')) # Carga los mu almacenados en .npy
     mu = np.load(os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'mu_values_{machine_type}.npy')) # Carga los mu almacenados en .npy
     print(f"Loaded mu shape: {mu.shape}")
-
+    # print(f"primeros 100 mu: {mu[:100, :]}")
 
     N_vectors_per_file = int(mu.shape[0] / len(labels)) # nºvectors por archivo
     frame_labels = np.repeat(labels, N_vectors_per_file) # Crea etiquetas por frame repitiendo la etiqueta del archivo
+    frame_sections = np.repeat(sections, N_vectors_per_file) # Seleciona la seccion a la que pertenece cada audio (y lo repite en cada vector)
+    ids = np.repeat(np.arange(len(labels)), N_vectors_per_file) # Id dieferente para cada audio
     assert len(frame_labels) == mu.shape[0], "Length of frame_labels must match number of mu vectors"
     # ============================
     # t-SNE
     # ============================
     tsne = TSNE(
-        n_components=2,
+        n_components=2, # Poner a 3 para 3D
         perplexity=30,
         learning_rate=200,
         max_iter=1000,
@@ -49,26 +54,34 @@ def main(mode, machine_type):
     print("t-SNE finished")
 
     # ============================
-    # Plot
+    # Plot 2D
     # ============================
-    plt.figure(figsize=(8, 6))
-
+    plt.figure(figsize=(8, 6)) # Para 2D
+    # ============================
+    # Plot 3D
+    # ============================
+    # ax = fig.add_subplot(111, projection='3d')
+    # fig = plt.figure(figsize=(8, 6))
+    # ax = fig.add_subplot(111, projection='3d')
+    # labels = []
     if labels is not None:
-        scatter = plt.scatter(
+        scatter = plt.scatter( # Con ax.scatter para 3D
             mu_tsne[:, 0],
             mu_tsne[:, 1],
+            # mu_tsne[:, 2], # Para 3D
             c=frame_labels,
+            # c=ids,
             s=10
         )
         plt.colorbar(scatter)
     else:
-        plt.scatter(
+        plt.scatter( # Con ax.scatter para 3D
             mu_tsne[:, 0],
             mu_tsne[:, 1],
             s=10
         )
 
-    plt.title("t-SNE of VAE Latent Space (mu)")
+    plt.title(f't-SNE of VAE Latent Space (mu) for {machine_type} in {params.results_dir}')
     plt.xlabel("t-SNE 1")
     plt.ylabel("t-SNE 2")
     plt.tight_layout()

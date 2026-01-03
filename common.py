@@ -18,19 +18,25 @@ import argparse
 logger = logging.getLogger(__name__)
 
 def command_line_chk():
+    """
+    parse command line options
+    return :
+        mode : boolean
+            if True, development mode
+            if False, evaluation mode
+        input_type : str
+            'wav' or 'npy'
+        machine_type : str
+            'bearing','fan','valve' machine type used for tsne visualization
+    """
     parser = argparse.ArgumentParser(description='Without option argument, it will not run properly.')
-    parser.add_argument('-v', '--version', action='store_true', help="show application version")
     parser.add_argument('-d', '--dev', action='store_true', help="run mode Development")
     parser.add_argument('-e', '--eval', action='store_true', help="run mode Evaluation")
     parser.add_argument('-i', '--input', type=str, choices=['npy', 'wav'], default='wav',
-                        help="Fuente de datos: 'npy' para cargar preprocesados, 'wav' para calcular espectrogramas")
+                        help="Fuente de datos: 'npy' para cargar preprocesados, 'wav' (default) para calcular espectrogramas")
     parser.add_argument('-m', '--machine_type', type=str, choices=['bearing','fan','valve'], help="Machine type only used for tsne visualization")
 
     args = parser.parse_args()
-    if args.version:
-        print("===============================")
-        print("ASD project\nversion {}".format(__versions__))
-        print("===============================\n")
     if args.dev:
         flag = True
     elif args.eval:
@@ -40,6 +46,10 @@ def command_line_chk():
         print("incorrect argument")
         print("please set option argument '--dev' or '--eval'")
     return flag, args.input, args.machine_type
+
+
+# ============ Audio Processing Functions ============
+# Mainly extracted from https://github.com/gefleury/datascientest_anomalous_sounds
 
 def load_audio(file_path):
     y, sr = librosa.load(file_path, sr = None)
@@ -114,8 +124,11 @@ def plot_mag_melspectrogram(audio, sr, n_fft = 2048, hop_length = 2048, n_mels=6
     cbar = plt.colorbar(img, ax=ax, format="%+2.f dB")
     cbar.set_label('Intensity')
 
+# ============ #
+
+
 def plot_dsp (audio,sr,NFFT=1024,N_avg=8):
-    # Computes more time frames and averages every N_avg
+    # Computes more time frames and averages every N_avg (psd estimation)
     espectrograma,angle=np.array(spectrogram(audio, NFFT, NFFT//N_avg))
     psd=np.empty((espectrograma.shape[0],espectrograma.shape[1]//N_avg))
     for i in range(0,espectrograma.shape[1]-N_avg,N_avg):
@@ -138,6 +151,13 @@ def play_audio(audio_data, sr):
     sd.wait()  # espera hasta que termine
 
 def yaml_load(yaml_file='parameters.yaml'):
+    """
+    load yaml file with all parameters
+    param yaml_file : str
+        yaml file path
+    return : easydict
+        extracted parameters in easydict format
+    """
     with open(yaml_file) as stream:
         param = yaml.safe_load(stream)
     return EasyDict(param)
@@ -150,12 +170,13 @@ def file_list_generator(target_dir,
                         prefix_anomaly="anomaly",
                         ext="wav"):
     """
+    generate file and label lists for train, validation, or test
     target_dir : str
         base directory path
     section_name : str
         section name of audio file in <<dir_name>> directory
     dir_name : str
-        sub directory name
+        sub directory name (train/test)
     prefix_normal : str (default="normal")
         normal directory name
     prefix_anomaly : str (default="anomaly")
@@ -305,7 +326,7 @@ def file_to_vectors(file_name,
     return : numpy.array( numpy.array( float ) )
         vector array
         * dataset.shape = (dataset_size, feature_vector_length)
-        IMPORTANTE: vector..shape = (n_vectors, n_mels*n_frames)
+        IMPORTANTE: vector.shape = (n_vectors, n_mels*n_frames)
     """
     # calculate the number of dimensions
     dims = n_mels * n_frames
@@ -313,15 +334,7 @@ def file_to_vectors(file_name,
     # generate melspectrogram using librosa
     if ext == 'wav':
         y, sr = load_audio(file_name)
-    # mel_spectrogram = librosa.feature.melspectrogram(y=y,
-    #                                                  sr=sr,
-    #                                                  n_fft=n_fft,
-    #                                                  hop_length=hop_length,
-    #                                                  n_mels=n_mels,
-    #                                                  power=power)
-
-    # # convert melspectrogram to log mel energies
-    # log_mel_spectrogram = 20.0 / power * np.log10(np.maximum(mel_spectrogram, sys.float_info.epsilon))
+   
         logmelspec = melspectrogram(audio=y,sr=sr,n_fft=n_fft,hop_length=hop_length,n_mels=n_mels)
     else: # ext == 'npy'
         logmelspec = np.load(file_name)
@@ -337,12 +350,13 @@ def file_to_vectors(file_name,
     vectors = np.zeros((n_vectors, dims))
     for t in range(n_frames):
         vectors[:, n_mels * t : n_mels * (t + 1)] = logmelspec[:, t : t + n_vectors].T
-    # print(f"File {file_name} -> {vectors.shape[0]} vectors of dimension {vectors.shape[1]} total {vectors.shape}")
 
     return vectors
 
 def select_dirs(params, mode, input_type ='wav'):
     """
+    Return list of directories (one for each machine type)
+    file_list_generator selects train or test folder inside each dir
     params : easydict
         baseline.yaml data
     mode : boolean

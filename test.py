@@ -11,12 +11,6 @@ import torch.nn.functional as F
 import common as com
 # import model.vae_model as vae_model
 
-# Guardar valores de z y recon_x para cada frame,
-# Guardar kld y reconst_loss para cada frame,
-# Calcular puntuacion anomalia de diferentes maneras para un validation set
-# Finalmente evaluar en test set con --eval
-
-
 params = com.yaml_load('parameters.yaml')
 
 def save_csv(save_file_path, save_data):
@@ -97,7 +91,6 @@ if __name__ == "__main__":
                                      hop_length=params.feature.hop_length,
                                      ext=input_type)
         N_vectors_per_file = int(data.shape[0] / len(files)) # nºvectors por archivo
-        # print(f"N_vectors_per_file: {N_vectors_per_file} shape data: {data.shape} nfiles: {len(files)}")
 
         # nºfila de data // nºvectors por archivo = indice de archivo (y de label)
         # Create a DataLoader for batching
@@ -107,8 +100,6 @@ if __name__ == "__main__":
         # No shuffle mantiene correspondencia frame-label. Ademas ya se han mezclado en filelist generator.
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=params.train.batch_size, shuffle=False, drop_last=False)
        
-       #QUITAR ESTE IF MODE. SOLO GUARDO KLD Y RECONST LOSS EN MODO DEV
-        # if mode: # Modo development datos validacion. Guardar latents y losses por frame y calcula sus metricas
         mu_values_path = os.path.join(params.results_dir,
                                       'val' if mode else 'test',
                                       machine_type,
@@ -125,18 +116,19 @@ if __name__ == "__main__":
         with torch.no_grad():
             for x in dataloader:
                 x = x[0].to(device)
-                reconstructed, z, mu, logvar = model(x) # Forward
+                # reconstructed, z, mu, logvar = model(x) # Forward | para VAE
+                reconstructed, mu = model(x) # Para AE
                 # print(mu.shape)
                 # --- Pérdida por elemento (frame) ---
                 # Reconstruction loss por elemento
                 reconst_loss = F.mse_loss(reconstructed, x, reduction='none')
                 reconst_loss = reconst_loss.view(reconstructed.size(0), -1).mean(dim=1) # shape: [batch_size]
 
-                # KLD por elemento
-                kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1) # shape: [batch_size]
+                # KLD por elemento (comentar para AE)
+                # kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1) # shape: [batch_size]
 
                 all_mu.append(mu.cpu())
-                all_kld.append(kld.cpu())
+                # all_kld.append(kld.cpu()) # comentar para AE
                 all_reconst_loss.append(reconst_loss.cpu())
 
             all_mu = torch.cat(all_mu, dim=0).numpy()
@@ -144,11 +136,11 @@ if __name__ == "__main__":
             np.save(mu_values_path, all_mu)
 
             if mode: # Modo development guardo tambien losses
-                all_kld = torch.cat(all_kld, dim=0).numpy()
+                # all_kld = torch.cat(all_kld, dim=0).numpy() # comentar para AE
                 all_reconst_loss = torch.cat(all_reconst_loss, dim=0).numpy()
 
-            os.makedirs(os.path.dirname(kld_path), exist_ok=True)  # crea carpetas intermedias
-            np.savetxt(kld_path, all_kld, delimiter=",")
+            # os.makedirs(os.path.dirname(kld_path), exist_ok=True)  # crea carpetas intermedias | comentar para AE
+            # np.savetxt(kld_path, all_kld, delimiter=",") # comentar para AE
             os.makedirs(os.path.dirname(reconst_loss_path), exist_ok=True)  # crea carpetas intermedias
             np.savetxt(reconst_loss_path, all_reconst_loss, delimiter=",")
 
@@ -158,9 +150,12 @@ if __name__ == "__main__":
             start_idx = 0
 
             for label in labels:
+                # Este for calcula la puntuacion de anomalia audio usando loss, kld, mu, logvar, etc de cada vector perteneciente al mismo
+                # Puede usarse cualquier combinacion/operacion de los mismos, resultando en un solo escalar
                 end_idx = start_idx + N_vectors_per_file
                 # Anomaly score = media de frames
-                anomaly_score = np.mean(a_RECONST*all_reconst_loss[start_idx:end_idx] + a_KLD*all_kld[start_idx:end_idx])
+                # anomaly_score = np.mean(a_RECONST*all_reconst_loss[start_idx:end_idx] + a_KLD*all_kld[start_idx:end_idx]) # comentar para AE
+                anomaly_score = np.mean(a_RECONST*all_reconst_loss[start_idx:end_idx]) # Para AE
                 anomaly_scores_list.append(anomaly_score)
                 # audio_label_list.append(label)
                 start_idx = end_idx

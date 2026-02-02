@@ -9,38 +9,32 @@ from sklearn.metrics import roc_auc_score, fbeta_score
 import torch.nn.functional as F
 
 import common as com
-# import model.vae_model as vae_model
 
-params = com.yaml_load('parameters.yaml')
+params = com.yaml_load('parametersCNN.yaml')
+
 
 def save_csv(save_file_path, save_data):
     with open(save_file_path, "w", newline="") as f:
         writer = csv.writer(f, lineterminator='\n')
         writer.writerows(save_data)
 
-
 if __name__ == "__main__":
     # check mode
-    # "development": mode == True | Coge datos validacion
-    # "evaluation": mode == False | Datos de test
+    # "development": mode == True
+    # "evaluation": mode == False
     # input_type: 'wav' or 'npy' (default 'wav')
     mode, input_type, machine_type = com.command_line_chk()
     if mode is None:
-       sys.exit(-1)
-    # mode = True  # for debug
-    # compute_spec = 1  # for debug
-    dir_name = 'test'  # Since we are evaluating
+        sys.exit(-1)
+    dir_name = "test"
     # make output result directory
     os.makedirs(params.results_dir, exist_ok=True)
 
-    # Selecciona todas las carpetas dentro de data/data (o data/features)
-    dirs, flag_npy, input_type = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-
-    # if mode: # Modo development
-    #     performance_over_all = []
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    # Selecciona todas las carpetas dentro de eval_data_dir
+    dirs, flag_npy, input_type = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    print(f"machine_type: {machine_type}, dirs: {dirs}")
     if machine_type == "todos":
         todos = True
         mu_values_path_todos = os.path.join(params.results_dir,
@@ -67,26 +61,20 @@ if __name__ == "__main__":
 
     else:
         todos = False
-
+    
     for target_dir in dirs:
-        print("=========================================")
-        machine_type = os.path.split(target_dir)[1] # Para cada maquina
-            
-        # machine_type = Path(target_dir).parts[-2]
-        # if machine_type != "bearing":
-        #     print(machine_type)
-        #     continue
-        print(f'==== machine type: {machine_type} target_dir: {target_dir} ====')
-        # machine_type = os.path.split(target_dir)[1]
-        print(f'==== Start inference [{machine_type}] with {torch.cuda.device_count()} GPU(s). ====')
+        machine_type = os.path.split(target_dir)[1] # Metricas para cada maquina
 
+        print(f'==== Start evaluation [{machine_type}] with {torch.cuda.device_count()} GPU(s). ====')
+
+        # derive model dims from parameters
         a_RECONST = params.train.w_recon
         a_KLD = params.train.w_kl
 
         # set path
-        # machine_type = os.path.split(target_dir)[1]
         model_file_path = "{model}/model_{machine_type}.pth".format(model=params.model_dir,
                                                                     machine_type=machine_type if not todos else "todos")
+        print(f"Loading model from {model_file_path}")
         if not os.path.exists(model_file_path):
             com.logger.error("{} model not found ".format(machine_type if not todos else "todos"))
             sys.exit(-1)
@@ -102,29 +90,23 @@ if __name__ == "__main__":
 
         files, labels = com.file_list_generator(target_dir=target_dir,
                                                 section_name="*",
-                                                dir_name="test",
+                                                dir_name=dir_name,
                                                 mode=mode,
                                                 input_type=input_type)
         
-        data = com.file_list_to_data(files,
-                                     msg="generate train_dataset",
-                                     n_mels=params.feature.n_mels,
-                                     n_frames=params.feature.frames,
-                                     n_hop_frames=params.feature.n_hop_frames,
-                                     n_fft=params.feature.n_fft, # Usar el mismo que en train
-                                     hop_length=params.feature.hop_length,
-                                     input_type=input_type,
-                                     mode=mode,
-                                     flag_npy=flag_npy,
-                                     dir_name=dir_name)
-        N_vectors_per_file = int(data.shape[0] / len(files)) # nºvectors por archivo
-
+        data = com.file_list_to_data_CNN(files,
+                                         msg="generate test_dataset",
+                                         n_mels=params.feature.n_mels,
+                                         n_fft=params.feature.n_fft,
+                                         hop_length=params.feature.hop_length,
+                                         input_type=input_type,
+                                         machine_type=machine_type,
+                                         flag_npy=flag_npy,
+                                         dir_name=dir_name)
         # IMPORTANTE: Estandarizar los datos si el modelo se entrenó con datos estandarizados
-        if "std" in model_file_path:
-            m, s = data.mean(), data.std()
-            data = (data-m)/s+1e-8 # Estandariza los datos
+        m, s = data.mean(), data.std()
+        data = (data-m)/s+1e-8 # Estandariza los datos
 
-        # nºfila de data // nºvectors por archivo = indice de archivo (y de label)
         # Create a DataLoader for batching
         dataset = torch.utils.data.TensorDataset(torch.tensor(data, dtype=torch.float32))
         # No shuffle mantiene correspondencia frame-label. Ademas ya se han mezclado en filelist generator.
@@ -148,10 +130,8 @@ if __name__ == "__main__":
             for x in dataloader:
                 x = x[0].to(device)
                 reconstructed, z, mu, logvar = model(x) # Forward | para VAE
-                # reconstructed, mu = model(x) # Para AE
-                # print(mu.shape)
-                # --- Loss por elemento (frame) ---
                 reconst_loss = F.mse_loss(reconstructed, x, reduction='none')
+                # print(f"reconstructed.shape: {reconstructed.shape}, x.shape: {x.shape}, reconst_loss.shape: {reconst_loss.shape}")
                 reconst_loss = reconst_loss.view(reconstructed.size(0), -1).mean(dim=1) # shape: [batch_size]
 
                 # KLD por elemento (comentar para AE)
@@ -174,26 +154,14 @@ if __name__ == "__main__":
             os.makedirs(os.path.dirname(reconst_loss_path), exist_ok=True)  # crea carpetas intermedias
             np.savetxt(reconst_loss_path, all_reconst_loss, delimiter=",")
 
-            audio_label_list = labels
-
-            start_idx = 0
-
+            idx = -1
             for label in labels:
-                # Este for calcula la puntuacion de anomalia audio usando loss, kld, mu, logvar, etc de cada vector perteneciente al mismo
-                # Puede usarse cualquier combinacion/operacion de los mismos, resultando en un solo escalar
-                end_idx = start_idx + N_vectors_per_file
-                # Anomaly score = media de frames
-                anomaly_score = np.mean(a_RECONST*all_reconst_loss[start_idx:end_idx] + a_KLD*all_kld[start_idx:end_idx]) # Para VAE
-                # anomaly_score = np.mean(a_RECONST*all_reconst_loss[start_idx:end_idx]) # Para AE
+                idx+=1
+                anomaly_score = a_RECONST * all_reconst_loss[idx] + a_KLD * all_kld[idx] # comentar para AE
+                # anomaly_score = a_RECONST * all_reconst_loss[idx]  # para AE
                 anomaly_scores_list.append(anomaly_score)
-                # audio_label_list.append(label)
-                start_idx = end_idx
-                # print(f"Processed file {len(anonmaly_scores_list)}/{len(files)}")
-            # print(f"recloss: {all_reconst_loss[:40]}\n")
-            # print(f"kld: {all_kld[:40]}")
             anomaly_scores_array = np.array(anomaly_scores_list)
-            audio_label_array = np.array(audio_label_list)
-
+            audio_label_array = np.array(labels)
             np.savetxt(
                 anomaly_scores_path,
                 np.column_stack([anomaly_scores_array, audio_label_array.astype(int)]),
@@ -211,7 +179,7 @@ if __name__ == "__main__":
                 f.write("AUC,F2,threshold\n")
                 f.write(f"{auc},{f2},{threshold}\n")
 
-            if todos:
+            if todos: # Almacena los resultados de todas las maquinas concatenados
                 all_mu_todos.append(all_mu)
                 all_kld_todos.append(all_kld)
                 all_reconst_loss_todos.append(all_reconst_loss)

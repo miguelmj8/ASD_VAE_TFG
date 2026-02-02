@@ -17,7 +17,7 @@ class VAE(nn.Module):
         self.enc3 = nn.Linear(h_dim, h_dim)
 
         self.fc_mu = nn.Linear(h_dim, z_dim)
-        # self.fc_logvar = nn.Linear(h_dim, z_dim) # comentar esta linea para AE
+        self.fc_logvar = nn.Linear(h_dim, z_dim) # comentar esta linea para AE
 
         self.dec1 = nn.Linear(z_dim, h_dim)
         self.dec2 = nn.Linear(h_dim, h_dim)
@@ -28,8 +28,8 @@ class VAE(nn.Module):
             h = F.relu(self.enc1(x))
             h = F.relu(self.enc2(h))
             h = F.relu(self.enc3(h))
-            # return self.fc_mu(h), self.fc_logvar(h) # return para VAE
-            return self.fc_mu(h) # return para AE
+            return self.fc_mu(h), self.fc_logvar(h) # return para VAE
+            # return self.fc_mu(h) # return para AE
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5*logvar)
@@ -44,12 +44,12 @@ class VAE(nn.Module):
 
     def forward_all(self, x):
         # VAE
-        # mu, logvar = self.encode(x.view(-1, self.x_dim)) # flatten in case x is not flat
-        # z = self.reparameterize(mu, logvar)
-        # return self.decode(z), z, mu, logvar
+        mu, logvar = self.encode(x.view(-1, self.x_dim)) # flatten in case x is not flat
+        z = self.reparameterize(mu, logvar)
+        return self.decode(z), z, mu, logvar
         # AE
-        mu = self.encode(x.view(-1, self.x_dim))
-        return self.decode(mu), mu
+        # mu = self.encode(x.view(-1, self.x_dim))
+        # return self.decode(mu), mu
         
 
     def forward(self, x):

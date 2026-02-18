@@ -17,17 +17,18 @@ import argparse
 
 logger = logging.getLogger(__name__)
 
-def command_line_chk():
+def command_line_chk(dir_name):
     """
     parse command line options
     return :
-        mode : boolean
+        flag (mode) : boolean
             if True, development mode
-            if False, evaluation mode
+            if False, evaluation mode (whether validation or test)
         input_type : str
             'wav' or 'npy'
         machine_type : str
             'bearing','fan','valve' machine type used for tsne visualization
+        dir_name:
     """
     parser = argparse.ArgumentParser(description='Without option argument, it will not run properly.')
     # parser.add_argument('-d', '--dev', action='store_true', help="run mode Development")
@@ -35,14 +36,20 @@ def command_line_chk():
     parser.add_argument('-i', '--input', type=str, choices=['npy', 'wav'], default='wav',
                         help="Fuente de datos: 'npy' para cargar preprocesados, 'wav' (default) para calcular espectrogramas")
     parser.add_argument('-m', '--machine_type', type=str, choices=['bearing','fan','valve','todos'], help="Machine type only used for tsne visualization")
+    parser.add_argument('-r', '--resubstitution', action='store_true', help='test with train data')
 
     args = parser.parse_args()
     # if args.dev:
     flag = True
     if args.eval:
         flag = False
+    if args.input == 'npy' and not flag:
+        logger.warning("npy input type is not available in evaluation mode. Switching to 'wav' input type.")
+        args.input = 'wav'
+    
+    dir_name = 'train' if args.resubstitution else dir_name
        
-    return flag, args.input, args.machine_type
+    return flag, args.input, args.machine_type, dir_name
 
 
 # ============ Audio Processing Functions ============
@@ -171,9 +178,12 @@ def check_npy(params, input_type='npy', machine_type=None, dir_name=None):
         flag_npy : boolean
         True if npy directory does not exist and input type is npy, False otherwise
     """
-    print(f"Checking npy data for {dir_name} in {params.dev_features_dir})")
+    if machine_type is None or machine_type == "todos":
+        machine_type = "bearing"  # any machine type will do for the path check
+    print(f"Checking npy data for {dir_name} in {params.features_dir})")
     if input_type == 'npy':
-        npy_path = os.path.abspath("{base}/{machine_type}".format(base=params.dev_features_dir, machine_type=machine_type))
+        npy_path = os.path.abspath("{base}/{machine_type}".format(base=params.features_dir, machine_type=machine_type))
+        print(f"=================npy_path: {npy_path}, exists: {os.path.exists(npy_path)}")
         if dir_name == 'train':
             if os.path.exists(os.path.join(npy_path, dir_name)):
                 logger.info("npy input is selected in parameters file")
@@ -184,12 +194,55 @@ def check_npy(params, input_type='npy', machine_type=None, dir_name=None):
         else:
             if os.path.exists(os.path.join(npy_path, dir_name)):
                 logger.info("npy input is selected in parameters file")
+                print(f"============npy path exists: {os.path.join(npy_path, dir_name)}============")
                 return 'npy', False
             else:
                 logger.info("npy directory for eval does not exist")
                 return 'wav', True
     else:
         return 'wav', False
+
+def select_dirs(params, mode, input_type ='wav', machine_type=None, dir_name=None):
+    """
+    Return list of directories (one for each machine type)
+    file_list_generator selects train or test folder inside each dir
+    params : easydict
+        baseline.yaml data
+    mode : boolean
+        dev or eval mode
+    input_type : str
+    machine_type : str
+    dir_name : str
+        train or test dirs
+        
+        if active type the development :
+            dirs :  list [ str ]
+                load base directory list of dev_data
+        if active type the evaluation :
+            dirs : list [ str ]
+                load base directory list of eval_data
+    """
+    input_type, flag_npy = check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    print(f"Using input type: {input_type}")
+    print(f"flag_npy: {flag_npy}")
+
+    if mode and input_type=='wav':
+        logger.info("load_directory <- development (wav input)")
+        query = os.path.abspath("{base}/*".format(base=params.data_dir))
+    elif mode and input_type=='npy':
+        logger.info("load_directory <- development (npy input)")
+        query = os.path.abspath("{base}/*".format(base=params.features_dir))
+    elif not mode and input_type=='wav':
+        logger.info("load_directory <- evaluation (wav input)")
+        query = os.path.abspath("{base}/*".format(base=params.data_dir))
+    else:
+        logger.info("load_directory <- evaluation (npy input)")
+        query = os.path.abspath("{base}/*".format(base=params.features_dir))
+    dirs = sorted(glob.glob(query))
+    dirs = [f for f in dirs if os.path.isdir(f) and 'todos' not in f]
+    if machine_type is not None and machine_type != 'todos':
+        dirs = [d for d in dirs if machine_type in os.path.basename(d)]
+    return dirs, flag_npy, input_type
 
 def file_list_generator(target_dir,
                         dir_name,
@@ -198,6 +251,7 @@ def file_list_generator(target_dir,
                         prefix_normal="normal",
                         prefix_anomaly="anomaly",
                         input_type="wav",
+                        flag_npy=False,
                         params=yaml_load('parameters.yaml')):
     """
     generate file and label lists for train, validation, or test
@@ -232,7 +286,7 @@ def file_list_generator(target_dir,
     if dir_name == "train": # En modo dev solo normales en train
         if target_dir is None: # para un solo modelo con todas las maquinas (train todos)
             queries = []
-            target_dirs, _, _ = select_dirs(params=params, mode=mode, input_type=input_type)
+            target_dirs, _, _ = select_dirs(params=params, mode=mode, input_type=input_type, dir_name=dir_name)
             queries = [os.path.join("{target_dir}/{dir_name}/{section_name}_*_{prefix_normal}_*.{input_type}".format(target_dir=target_dir,
                                                                                                             dir_name=dir_name,
                                                                                                             section_name=section_name,
@@ -269,7 +323,7 @@ def file_list_generator(target_dir,
         
         normal_files = sorted(glob.glob(query_normal))
         print('target_dir:', target_dir)
-        print(f'query test normales: {query_normal}, {len(normal_files)} archivos encontrados')
+        print(f'query test normales: {query_normal}')
 
         normal_labels = np.zeros(len(normal_files))
         
@@ -280,33 +334,40 @@ def file_list_generator(target_dir,
                                                                                                         input_type=input_type))
         anomaly_files = sorted(glob.glob(query_anomaly))
         anomaly_labels = np.ones(len(anomaly_files))
+        print(f'query test anomalos: {query_anomaly}')
         
-        seed = yaml_load('parameters.yaml').seed
-        rng = np.random.default_rng(seed)
+        # si ya estan guardados los npy, se cogen todos,
+        #ya que nunca se gaurdan npy de eval, solo validation
+        if input_type == 'npy' and not flag_npy:
+            files = np.concatenate((normal_files, anomaly_files), axis=0)
+            labels = np.concatenate((normal_labels, anomaly_labels), axis=0)
+        
+        else:
+            # Shuffle and split normal and anomaly files for validation or eval
+            seed = yaml_load('parameters.yaml').seed
+            rng = np.random.default_rng(seed)
 
-        normal_pairs = list(zip(normal_files, normal_labels))
-        anomaly_pairs = list(zip(anomaly_files, anomaly_labels))
+            normal_pairs = list(zip(normal_files, normal_labels))
+            anomaly_pairs = list(zip(anomaly_files, anomaly_labels))
 
-        rng.shuffle(normal_pairs) 
-        rng.shuffle(anomaly_pairs)
+            rng.shuffle(normal_pairs) 
+            rng.shuffle(anomaly_pairs)
 
-        half_normal = len(normal_files) // 2
-        half_anomaly = len(anomaly_files) // 2
-        if mode: # Modo development: cojo datos validacion
-            normal_selected = normal_pairs[:half_normal]
-            anomaly_selected = anomaly_pairs[:half_anomaly]
-        else: # Modo evaluacion
-            normal_selected = normal_pairs[half_normal:]
-            anomaly_selected = anomaly_pairs[half_anomaly:]
+            half_normal = len(normal_files) // 2
+            half_anomaly = len(anomaly_files) // 2
+            if mode: # Modo development: cojo datos validacion
+                normal_selected = normal_pairs[:half_normal]
+                anomaly_selected = anomaly_pairs[:half_anomaly]
+            else: # Modo evaluacion
+                normal_selected = normal_pairs[half_normal:]
+                anomaly_selected = anomaly_pairs[half_anomaly:]
 
-        all_selected = normal_selected + anomaly_selected
-        files, labels = zip(*all_selected)
-        files = np.array(files)
-        labels = np.array(labels)
-
-        # files = np.concatenate((normal_files, anomaly_files), axis=0)
-        # labels = np.concatenate((normal_labels, anomaly_labels), axis=0)
-
+            all_selected = normal_selected + anomaly_selected
+            files, labels = zip(*all_selected)
+            files = np.array(files)
+            labels = np.array(labels)
+            
+        print(f'numero de archivos seleccionados: {len(files)} y labels: {len(labels)}')
         logger.info("#files : {num}".format(num=len(files)))
         if len(files) == 0:
             logger.exception("no files!!")
@@ -341,6 +402,10 @@ def file_list_to_data(file_list,
         * dataset.shape = (number of feature vectors, dimensions of feature vectors)
         IMPORTANTE: data.shape = (total_n_vectors, n_mels*n_frames) con total_n_vectors = n_vectors_per_file * n_files
     """
+    if input_type == 'npy' and not flag_npy:
+        msg = f"Loading npy files"
+    else:
+        msg = f"Generateing data"
     # calculate the number of dimensions
     dims = n_mels * n_frames
 
@@ -395,9 +460,9 @@ def file_to_vectors(file_name,
             # save npy file for future use
             params = yaml_load('parameters.yaml')
             if dir_name == 'train':
-                npy_path = os.path.abspath("{base}/{machine_type}/train/{file_name}".format(base=params.dev_features_dir, machine_type=machine_type, file_name=os.path.basename(file_name).replace(".wav", ".npy")))
+                npy_path = os.path.abspath("{base}/{machine_type}/train/{file_name}".format(base=params.features_dir, machine_type=machine_type, file_name=os.path.basename(file_name).replace(".wav", ".npy")))
             else:
-                npy_path = os.path.abspath("{base}/{machine_type}/test/{file_name}".format(base=params.eval_features_dir, machine_type=machine_type, file_name=os.path.basename(file_name).replace(".wav", ".npy")))
+                npy_path = os.path.abspath("{base}/{machine_type}/test/{file_name}".format(base=params.features_dir, machine_type=machine_type, file_name=os.path.basename(file_name).replace(".wav", ".npy")))
             os.makedirs(os.path.dirname(npy_path), exist_ok=True)
             np.save(npy_path, logmelspec)
 
@@ -418,44 +483,6 @@ def file_to_vectors(file_name,
 
     return vectors
 
-def select_dirs(params, mode, input_type ='wav', machine_type=None, dir_name=None):
-    """
-    Return list of directories (one for each machine type)
-    file_list_generator selects train or test folder inside each dir
-    params : easydict
-        baseline.yaml data
-    mode : boolean
-        dev or eval mode
-    compute_spec : boolean
-        wav or npy input data (compute spectrogram or load precomputed)
-        if active type the development :
-            dirs :  list [ str ]
-                load base directory list of dev_data
-        if active type the evaluation :
-            dirs : list [ str ]
-                load base directory list of eval_data
-    """
-    input_type, flag_npy = check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-    print(f"Using input type: {input_type}")
-    print(f"flag_npy: {flag_npy}")
-
-    if mode and input_type=='wav':
-        logger.info("load_directory <- development (wav input)")
-        query = os.path.abspath("{base}/*".format(base=params.dev_data_dir))
-    elif mode and input_type=='npy':
-        logger.info("load_directory <- development (npy input)")
-        query = os.path.abspath("{base}/*".format(base=params.dev_features_dir))
-    elif not mode and input_type=='wav':
-        logger.info("load_directory <- evaluation (wav input)")
-        query = os.path.abspath("{base}/*".format(base=params.eval_data_dir))
-    else:
-        logger.info("load_directory <- evaluation (npy input)")
-        query = os.path.abspath("{base}/*".format(base=params.eval_features_dir))
-    dirs = sorted(glob.glob(query))
-    dirs = [f for f in dirs if os.path.isdir(f)]
-    if machine_type is not None and machine_type != 'todos':
-        dirs = [d for d in dirs if machine_type in os.path.basename(d)]
-    return dirs, flag_npy, input_type
 
 def file_list_to_data_CNN(files,
                           msg="calc...",
@@ -477,6 +504,10 @@ def file_list_to_data_CNN(files,
         data for training (this function is not used for test.)
         * data.shape = (number of files, 1, n_mels, n_time_frames)
     """
+    if input_type == 'npy' and not flag_npy:
+        msg = f"Loading npy files"
+    else:
+        msg = f"Generateing data"
     params = yaml_load('parameters.yaml')
     # iterate file_to_melspectrogram()
     for idx in tqdm(range(len(files)), desc=msg):
@@ -487,9 +518,9 @@ def file_list_to_data_CNN(files,
             if flag_npy:
                 # save npy file for future use
                 if dir_name == 'train':
-                    npy_path = os.path.abspath("{base}/{machine_type}/train/{file_name}".format(base=params.dev_features_dir, machine_type=machine_type, file_name=os.path.basename(files[idx]).replace(".wav", ".npy")))
+                    npy_path = os.path.abspath("{base}/{machine_type}/train/{file_name}".format(base=params.features_dir, machine_type=machine_type, file_name=os.path.basename(files[idx]).replace(".wav", ".npy")))
                 else:
-                    npy_path = os.path.abspath("{base}/{machine_type}/test/{file_name}".format(base=params.eval_features_dir, machine_type=machine_type, file_name=os.path.basename(files[idx]).replace(".wav", ".npy")))
+                    npy_path = os.path.abspath("{base}/{machine_type}/test/{file_name}".format(base=params.features_dir, machine_type=machine_type, file_name=os.path.basename(files[idx]).replace(".wav", ".npy")))
                 os.makedirs(os.path.dirname(npy_path), exist_ok=True)
                 np.save(npy_path, logmelspec)
 

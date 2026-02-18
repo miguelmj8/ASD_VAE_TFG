@@ -14,16 +14,15 @@ if __name__ == "__main__":
     # "development": mode == True
     # "evaluation": mode == False
     # input_type: 'wav' or 'npy' (default 'wav')
-    mode, input_type, machine_type = com.command_line_chk()
+    mode, input_type, machine_type, dir_name = com.command_line_chk('train')
     if mode is None:
         sys.exit(-1)
     # mode = True  # for debug
     # compute_spec = 1  # for debug
-    dir_name = 'train'  # Since we are training
     # make output directory
     os.makedirs(params.model_dir, exist_ok=True)
 
-    # Selecciona todas las carpetas dentro de dev_data_dir
+    # Selecciona todas las carpetas dentro de data_dir
     dirs, flag_npy, input_type = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -34,8 +33,6 @@ if __name__ == "__main__":
         else:
             machine_type = os.path.split(target_dir)[1] # Para cada maquina
 
-        print(f"machine_type: {machine_type}, target_dir: {target_dir}")
-        continue 
         # machine_type = "Todos" # Para todas las maquinas a la vez
         # if machine_type != "valve":
         #     print(machine_type)
@@ -46,7 +43,7 @@ if __name__ == "__main__":
         z_dim = params.model.latent_dim
 
         # set path
-        model_file_path = "{model}/model_{machine_type}.pth".format(model=params.model_dir,
+        model_file_path = "{model}/{machine_type}/model_{machine_type}.pth".format(model=params.model_dir,
                                                                     machine_type=machine_type)
       
         if os.path.exists(model_file_path):
@@ -82,10 +79,29 @@ if __name__ == "__main__":
 
         model.train()
 
-        m, s = data.mean(), data.std()
-        data_standarized = (data-m)/s+1e-8 # Estandariza los datos
-        print(f'Data mean: {m}, std: {s}')
-
+        # m, s = data.mean(), data.std()
+        # data_standarized = (data - m) / (s + 1e-8)  # Estandariza los datos
+        # print(f'Data mean: {m}, std: {s}')
+        m, s = data.mean(axis=0), data.std(axis=0)
+        data_standarized = (data - m) / (s + 1e-8)  # Estandariza los datos
+        print(f'Data mean: {m.shape}, std: {s.shape}')
+        
+        # Guardar media y desviación estándar para usar en inferencia
+        # std_path = os.path.join(params.data_dir, machine_type, f'mean_std_{machine_type}.txt')
+        # if not os.path.exists(std_path):
+        #     os.makedirs(os.path.dirname(std_path))
+        #     np.savetxt(std_path, np.array([m, s]))
+        #     print(f'Saved mean and std for {machine_type} at {std_path}')
+        
+        std_img_path = os.path.join(params.data_dir, machine_type, f'std_img_{machine_type}.npy')
+        mean_img_path = os.path.join(params.data_dir, machine_type, f'mean_img_{machine_type}.npy')
+        if not os.path.exists(std_img_path):
+            # os.makedirs(os.path.dirname(std_img_path))
+            # os.makedirs(os.path.dirname(mean_img_path))
+            np.save(std_img_path, s)
+            np.save(mean_img_path, m)
+            print(f'Saved mean and std for {machine_type} at {std_img_path}')
+            
         dataset = torch.utils.data.TensorDataset(torch.tensor(data_standarized, dtype=torch.float32))
         generator = torch.Generator()
         generator.manual_seed(params.seed)
@@ -94,7 +110,7 @@ if __name__ == "__main__":
                                                  shuffle=True,
                                                  generator=generator)
         
-        train_loss_path = os.path.join(params.model_dir, 'train', f'train_loss_{machine_type}.txt')
+        train_loss_path = os.path.join(os.path.dirname(model_file_path), f'train_loss_{machine_type}.txt')
         all_loss = []
 
         # De aqui pa abajo NO he COMPROBADO
@@ -108,14 +124,15 @@ if __name__ == "__main__":
 
                     optimizer.zero_grad()
 
-                    reconstructed, z, mu, logvar = model(batch_data)
-                    # reconstructed, mu = model(x) # para AE
+                    # reconstructed, z, mu, logvar = model(batch_data) # para VAE
+                    reconstructed, mu = model(batch_data) # para AE
 
                     # Compute loss
                     a_RECONST = params.train.w_recon
                     a_KLD = params.train.w_kl
-                    reconst_loss, kld = cnn_vae.VAE_loss_function(reconstructed, batch_data, mu, logvar) # Para VAE
-                    loss = a_RECONST * reconst_loss + a_KLD * kld # Para VAE
+                    # reconst_loss, kld = cnn_vae.VAE_loss_function(reconstructed, batch_data, mu, logvar) # Para VAE
+                    # loss = a_RECONST * reconst_loss + a_KLD * kld # Para VAE
+                    loss = cnn_vae.AE_loss_function(reconstructed, batch_data) # Para AE
                     loss.backward()
                     optimizer.step()
 

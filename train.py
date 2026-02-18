@@ -14,16 +14,15 @@ if __name__ == "__main__":
     # "development": mode == True
     # "evaluation": mode == False
     # input_type: 'wav' or 'npy' (default 'wav')
-    mode, input_type, machine_type = com.command_line_chk()
+    mode, input_type, machine_type, dir_name = com.command_line_chk('train')
     if mode is None:
         sys.exit(-1)
     # mode = True  # for debug
     # compute_spec = 1  # for debug
-    dir_name = 'train' 
     # make output directory
     os.makedirs(params.model_dir, exist_ok=True)
 
-    # Selecciona todas las carpetas dentro de dev_data_dir
+    # Selecciona todas las carpetas dentro de data_dir
     dirs, flag_npy, input_type = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -47,7 +46,7 @@ if __name__ == "__main__":
         z_dim = params.model.latent_dim
 
         # set path
-        model_file_path = "{model}/model_{machine_type}.pth".format(model=params.model_dir,
+        model_file_path = "{model}/{machine_type}/model_{machine_type}.pth".format(model=params.model_dir,
                                                                     machine_type=machine_type)
         # model_file_path = "{model}/model_{machine_type}_{x_dim}_{h_dim}_{z_dim}.pth".format(model=params.model_dir,
                                                                                             # machine_type=machine_type,
@@ -91,17 +90,23 @@ if __name__ == "__main__":
         # Set the model to training mode
         model.train()
 
-        m, s = data.mean(), data.std()
-        data_standarized = (data-m)/s+1e-8 # Estandariza los datos
+        m, s = data.mean(), data.std() # axis=0 para media por batch
+        data_standarized = (data-m)/(s+1e-8) # Estandariza los datos
         print(f'Data mean: {m}, std: {s}')
 
+        # Guardar media y desviación estándar para usar en inferencia
+        std_path = os.path.join(params.data_dir, machine_type, f'mean_std_{machine_type}.txt')
+        print(f'Saving mean and std to {std_path}, exists: {os.path.exists(std_path)}')
+        if not os.path.exists(std_path):
+            np.savetxt(std_path, np.array([m, s]))
+        
         # Create a DataLoader for batching
         dataset = torch.utils.data.TensorDataset(torch.tensor(data_standarized, dtype=torch.float32))
         generator = torch.Generator()
         generator.manual_seed(params.seed)
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=params.train.batch_size, shuffle=True, generator=generator)
       
-        train_loss_path = os.path.join(params.model_dir, 'train', f'train_loss_{machine_type}.csv')
+        train_loss_path = os.path.join(os.path.dirname(model_file_path), f'train_loss_{machine_type}.csv')
         all_loss = []
       
         for epoch in range(params.train.epochs):

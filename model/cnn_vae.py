@@ -18,7 +18,7 @@ class CNN_VAE(nn.Module):
         # Flatten para latente
         self.flatten_dim = 64 * 16 * 39
         self.fc_mu = nn.Linear(self.flatten_dim, z_dim)
-        self.fc_logvar = nn.Linear(self.flatten_dim, z_dim)  # comentar para AE
+        # self.fc_logvar = nn.Linear(self.flatten_dim, z_dim)  # comentar para AE
 
         # Decoder lineal inicial para expandir desde latente
         self.dec_fc = nn.Linear(z_dim, self.flatten_dim)
@@ -37,9 +37,9 @@ class CNN_VAE(nn.Module):
         h = F.relu(self.enc3(h))
         h = h.view(-1, self.flatten_dim)  # flatten
         mu = self.fc_mu(h)
-        logvar = self.fc_logvar(h)        # comentar para AE
-        return mu, logvar                  # para VAE
-        # return mu                        # para AE
+        # logvar = self.fc_logvar(h)        # comentar para AE
+        # return mu, logvar                  # para VAE
+        return mu                       # para AE
 
     # -----------------
     # Reparametrization trick
@@ -57,16 +57,20 @@ class CNN_VAE(nn.Module):
         h = h.view(-1, 64, 16, 39)  # reshape a volumen
         h = F.relu(self.dec1(h))
         h = F.relu(self.dec2(h))
-        h = torch.sigmoid(self.dec3(h))  # salida entre 0 y 1
+        h = self.dec3(h)  # sin sigmoid, los datos estandarizados pueden tener valores negativos
         return h
 
     # -----------------
     # Forward completo
     # -----------------
     def forward_all(self, x):
-        mu, logvar = self.encode(x)
-        z = self.reparameterize(mu, logvar)
-        return self.decode(z), z, mu, logvar
+        # VAE
+        # mu, logvar = self.encode(x)
+        # z = self.reparameterize(mu, logvar)
+        # return self.decode(z), z, mu, logvar
+        # AE
+        mu = self.encode(x)
+        return self.decode(mu), mu
 
     def forward(self, x):
         return self.forward_all(x)
@@ -82,3 +86,9 @@ def VAE_loss_function(recon_x, x, mu, logvar):
     kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
     return recon_loss, kld_loss
+
+def AE_loss_function(recon_x, x):
+    """Loss function for AE which is just the reconstruction loss.
+    """
+    recon_loss = F.mse_loss(recon_x, x, reduction='sum')
+    return recon_loss

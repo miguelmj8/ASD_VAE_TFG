@@ -24,14 +24,15 @@ if __name__ == "__main__":
     # "development": mode == True | Coge datos validacion
     # "evaluation": mode == False | Datos de test
     # input_type: 'wav' or 'npy' (default 'wav')
-    mode, input_type, machine_type = com.command_line_chk()
+    mode, input_type, machine_type, dir_name = com.command_line_chk('test')
     if mode is None:
        sys.exit(-1)
     # mode = True  # for debug
     # compute_spec = 1  # for debug
-    dir_name = 'test'  # Since we are evaluating
+
+    results_dir = os.path.join(params.results_dir, 'val' if mode else 'test') if dir_name=='test' else params.model_dir
     # make output result directory
-    os.makedirs(params.results_dir, exist_ok=True)
+    os.makedirs(results_dir, exist_ok=True)
 
     # Selecciona todas las carpetas dentro de data/data (o data/features)
     dirs, flag_npy, input_type = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
@@ -43,14 +44,13 @@ if __name__ == "__main__":
 
     if machine_type == "todos":
         todos = True
-        mu_values_path_todos = os.path.join(params.results_dir,
-                                      'val' if mode else 'test',
-                                      machine_type,
-                                      f'mu_values_{machine_type}.npy') # Almacena los valores de z por frame
-        kld_path_todos = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'kld_{machine_type}.csv') # Almacena los valores de kld por frame
-        reconst_loss_path_todos = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'reconst_loss_{machine_type}.csv') # Almacena los valores de reconst_loss por frame
-        anomaly_scores_path_todos = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'anomaly_scores_val_{machine_type}.csv') # Almacena los valores de puntuacion de anomalia por audio
-        metrics_path_todos = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'metrics_val_{machine_type}.csv') # AUC, f2score... por tipo de maquina (y por seccion)
+        mu_values_path_todos = os.path.join(results_dir,
+                                            machine_type,
+                                            f'mu_values_{machine_type}.npy') # Almacena los valores de z por frame
+        kld_path_todos = os.path.join(results_dir, machine_type, f'kld_{machine_type}.csv') # Almacena los valores de kld por frame
+        reconst_loss_path_todos = os.path.join(results_dir, machine_type, f'reconst_loss_{machine_type}.csv') # Almacena los valores de reconst_loss por frame
+        anomaly_scores_path_todos = os.path.join(results_dir, machine_type, f'anomaly_scores_val_{machine_type}.csv') # Almacena los valores de puntuacion de anomalia por audio
+        metrics_path_todos = os.path.join(results_dir, machine_type, f'metrics_val_{machine_type}.csv') # AUC, f2score... por tipo de maquina (y por seccion)
 
         all_mu_todos = []
         all_kld_todos = []
@@ -85,10 +85,10 @@ if __name__ == "__main__":
 
         # set path
         # machine_type = os.path.split(target_dir)[1]
-        model_file_path = "{model}/model_{machine_type}.pth".format(model=params.model_dir,
+        model_file_path = "{model}/{machine_type}/model_{machine_type}.pth".format(model=params.model_dir,
                                                                     machine_type=machine_type if not todos else "todos")
         if not os.path.exists(model_file_path):
-            com.logger.error("{} model not found ".format(machine_type if not todos else "todos"))
+            com.logger.error(f"Model not found for {machine_type if not todos else 'todos'}")
             sys.exit(-1)
         
         model = torch.load(model_file_path, weights_only=False) # Carga los pesos
@@ -121,8 +121,10 @@ if __name__ == "__main__":
 
         # IMPORTANTE: Estandarizar los datos si el modelo se entrenó con datos estandarizados
         if "std" in model_file_path:
-            m, s = data.mean(), data.std()
-            data = (data-m)/s+1e-8 # Estandariza los datos
+            # m, s = data.mean(), data.std()
+            m, s = np.loadtxt(os.path.join(params.data_dir, machine_type, f'mean_std_{machine_type}.txt')) # Uso de media y std guardados durante el entrenamiento
+            print(f'Loaded mean and std for {machine_type}: mean={m}, std={s}')
+            data = (data-m)/(s+1e-8) # Estandariza los datos
 
         # nºfila de data // nºvectors por archivo = indice de archivo (y de label)
         # Create a DataLoader for batching
@@ -130,14 +132,13 @@ if __name__ == "__main__":
         # No shuffle mantiene correspondencia frame-label. Ademas ya se han mezclado en filelist generator.
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=params.train.batch_size, shuffle=False, drop_last=False)
        
-        mu_values_path = os.path.join(params.results_dir,
-                                      'val' if mode else 'test',
+        mu_values_path = os.path.join(results_dir,
                                       machine_type,
                                       f'mu_values_{machine_type}.npy') # Almacena los valores de z por frame
-        kld_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'kld_{machine_type}.csv') # Almacena los valores de kld por frame
-        reconst_loss_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'reconst_loss_{machine_type}.csv') # Almacena los valores de reconst_loss por frame
-        anomaly_scores_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'anomaly_scores_val_{machine_type}.csv') # Almacena los valores de puntuacion de anomalia por audio
-        metrics_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'metrics_val_{machine_type}.csv') # AUC, f2score... por tipo de maquina (y por seccion)
+        kld_path = os.path.join(results_dir, machine_type, f'kld_{machine_type}.csv') # Almacena los valores de kld por frame
+        reconst_loss_path = os.path.join(results_dir, machine_type, f'reconst_loss_{machine_type}.csv') # Almacena los valores de reconst_loss por frame
+        anomaly_scores_path = os.path.join(results_dir, machine_type, f'anomaly_scores_val_{machine_type}.csv') # Almacena los valores de puntuacion de anomalia por audio
+        metrics_path = os.path.join(results_dir, machine_type, f'metrics_val_{machine_type}.csv') # AUC, f2score... por tipo de maquina (y por seccion)
 
         all_mu = []
         all_kld = []
@@ -185,6 +186,7 @@ if __name__ == "__main__":
                 # Anomaly score = media de frames
                 anomaly_score = np.mean(a_RECONST*all_reconst_loss[start_idx:end_idx] + a_KLD*all_kld[start_idx:end_idx]) # Para VAE
                 # anomaly_score = np.mean(a_RECONST*all_reconst_loss[start_idx:end_idx]) # Para AE
+                anomaly_score = np.mean(np.ptp(data[start_idx:end_idx]))
                 anomaly_scores_list.append(anomaly_score)
                 # audio_label_list.append(label)
                 start_idx = end_idx
@@ -231,5 +233,5 @@ if __name__ == "__main__":
                     f.write(f"{auc},{f2},{threshold}\n")
                     
 
-            print(f"[OK] Evaluación completada para {machine_type}. Datos guardados en {params.results_dir}")
+            print(f"[OK] Evaluación completada para {machine_type}. Datos guardados en {results_dir}")
             print(f"AUC = {auc:.4f}, F2 = {f2:.4f}, Threshold = {threshold:.4f}")

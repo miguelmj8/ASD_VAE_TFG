@@ -1,10 +1,9 @@
 # Rutas
-dev_data_dir: "../data/data/"
-eval_data_dir: "../data/data" # El query selecciona la carpeta de test
-dev_features_dir: "../data/Features/melspec_311_128"
-eval_features_dir: "../data/Features/melspec_311_128"
-model_dir: "./model_output/recon1kl0_15std" # _ significa . decimal
-results_dir: "./results/recon1kl0_15std"
+data_dir: "../data/data" # El query selecciona la carpeta de train o test
+features_dir: "../data/Features/melspec_311_128"
+# features_dir: "../data/Features/melspec_311_128"
+model_dir: "./model_output/recon1kl1std" # _ significa . decimal
+results_dir: "./results/recon1kl1std"
 # Audio
 feature:
   n_mels: 128
@@ -29,4 +28,4 @@ train:
   # validation_split: 0.1
   # Pesos de Loss (Requisito clave)
   w_recon: 1.0
-  w_kl: 0.15
+  w_kl: 1.0

@@ -1,10 +1,9 @@
 # Rutas
-dev_data_dir: "../data/data/"
-eval_data_dir: "../data/data" # El query selecciona la carpeta de test
-dev_features_dir: "../data/Features/melspec_311_128"
-eval_features_dir: "../data/Features/melspec_311_128"
-model_dir: "./model_output/CNN/recon1kl1" # _ significa . decimal
-results_dir: "./results/CNN/recon1kl1"
+data_dir: "../data/data" # El query selecciona la carpeta de train o test
+features_dir: "../data/Features/melspec_311_128"
+# features_dir: "../data/Features/melspec_311_128"
+model_dir: "./model_output/CNN/aeimg" # _ significa . decimal
+results_dir: "./results/CNN/aeimg"
 # Audio
 feature:
   n_mels: 128
@@ -16,12 +15,14 @@ seed: 42
 
 # Modelo
 model:
+  # latent_dim: 48
   latent_dim: 32
 
 # Entrenamiento
 train:
   batch_size: 32
-  epochs: 30
+  epochs: 10
+  # epochs: 30
   learning_rate: 0.001
   # validation_split: 0.1
   # Pesos de Loss (Requisito clave)

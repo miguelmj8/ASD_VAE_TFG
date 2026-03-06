@@ -2,28 +2,30 @@
 data_dir: "../data/data" # El query selecciona la carpeta de train o test
 features_dir: "../data/Features/melspec_311_128"
 # features_dir: "../data/Features/melspec_311_128"
-model_dir: "./model_output/CNN/aeimg" # _ significa . decimal
-results_dir: "./results/CNN/aeimg"
+model_dir: "./model_output/CNN/mselat48fr16_14todos" # _ significa . decimal
+results_dir: "./results/CNN/mselat48fr16_14todos"
 # Audio
 feature:
   n_mels: 128
   n_fft: 1024
   hop_length: 512 # Numero de muestras que se saltan entre frames del espectrograma
+  n_frames: 16 # Potencia de 2 para que cnn no de problemas
+  n_hop_frames: 14
 
 # Aleatoriedad
 seed: 42
 
 # Modelo
 model:
-  # latent_dim: 48
-  latent_dim: 32
+  # latent_dim: 16
+  latent_dim: 48
 
 # Entrenamiento
 train:
-  batch_size: 32
-  epochs: 10
+  batch_size: 64
+  epochs: 30
   # epochs: 30
-  learning_rate: 0.001
+  learning_rate: 0.0008
   # validation_split: 0.1
   # Pesos de Loss (Requisito clave)
   w_recon: 1.0

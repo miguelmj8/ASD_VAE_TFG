@@ -1,11 +1,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import plotly.express as px
+import pandas as pd
+import seaborn as sns
 from sklearn.manifold import TSNE
+
 import os
 import sys
 
 import common as com
 
+params = com.yaml_load('parameters.yaml')
 params = com.yaml_load('parametersCNN.yaml')
 
 # EJECUCION
@@ -16,49 +21,74 @@ params = com.yaml_load('parametersCNN.yaml')
 
 # EJECUCION (mio)
     #--machine_type valve
-def main(mode, machine_type, dir_name):
-    # model_type = "Todos" # = machine_type para modelo por tipo de maquina
-    if machine_type == 'todos':
-        files=[]
-        labels=[]
-        print(f"com")
-        for target_dir in com.select_dirs(params=params, mode=mode, input_type='wav', dir_name=dir_name)[0]:
-            filesi, labelsi = com.file_list_generator(
-                target_dir=target_dir,
+def main(mode, machine_type):
+    dir_names = ['test'] # 'test', 'train'
+    # results_dir = os.path.join(params.results_dir, 'val' if mode else 'test') if dir_name == 'test' else params.model_dir
+    files = []
+    labels = []
+    mu = []
+    logvar = []
+    dirs = []
+    machine_types = []
+    for dir_name in dir_names:
+        results_dir = os.path.join(params.results_dir, 'val' if mode else 'test') if dir_name == 'test' else params.model_dir 
+        print(results_dir)
+
+        # model_type = "Todos" # = machine_type para modelo por tipo de maquina
+        if machine_type == 'todos':
+            files_dir=[]
+            labels_dir=[]
+            print(f"com")
+            i = 0
+            for target_dir in com.select_dirs(params=params, mode=mode, input_type='wav', dir_name=dir_name):
+                files_mt, labels_mt,_ = com.file_list_generator(
+                    target_dir=target_dir,
+                    section_name="*",
+                    dir_name=dir_name,
+                    mode=mode,
+                    input_type='wav',
+                    params=params)
+                files_dir.extend(files_mt)
+                labels_dir.extend(labels_mt)
+                machine_types.extend([i] * len(files_mt))
+                i += 1
+        else:
+            files_dir, labels_dir,_ = com.file_list_generator(
+                target_dir = os.path.join(params.data_dir, machine_type),
                 section_name="*",
                 dir_name=dir_name,
                 mode=mode,
                 input_type='wav',
                 params=params)
-            files.extend(filesi)
-            labels.extend(labelsi)
-    else:
-        files, labels = com.file_list_generator(
-            target_dir = os.path.join(params.data_dir, machine_type),
-            section_name="*",
-            dir_name=dir_name,
-            mode=mode,
-            input_type='wav',
-            params=params)
+            machine_types.extend([0]*len(files_dir))
+            
+        files.extend(files_dir)
+        labels.extend(labels_dir)
+        if dir_name == 'train':
+            dirs.extend([0] * len(files_dir))
+        else:
+            dirs.extend([1] * len(files_dir))
+
+        # Load mu values
+        mu_dir = np.load(os.path.join(results_dir, machine_type, f'mu_values_{machine_type}.npy')) # Carga los mu almacenados en .npy
+        # logvar_dir = np.load(os.path.join(results_dir, machine_type, f'logvar_values_{machine_type}.npy')) # Hacer lista for resultsdir in resultsdir para tener train y test
+        mu.extend(mu_dir)
+        # logvar.extend(logvar_dir)
 
     archivos = [os.path.basename(f) for f in files]
     sections = np.array([f.split("_")[1] for f in archivos], dtype=int)
     print(f"Number of files: {len(files)} y labels: {len(labels)}")
-    # ============================
-    # Load mu values
-    # ============================
-    # mu = np.load(args.mu_path)
-    # mu = np.load(os.path.join(params.results_dir, f'mu_values_{machine_type}.npy')) # Carga los mu almacenados en .npy
-    mu = np.load(os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'mu_values_{machine_type}.npy')) # Carga los mu almacenados en .npy
-    # print(f"primeros 100 mu: {mu[:100]}")
-    # print(f"Loaded mu shape: {mu.shape}")
 
+    mu=np.array(mu)
+    # logvar=np.array(logvar)
     N_vectors_per_file = int(mu.shape[0] / len(labels)) # nºvectors por archivo
-    N_vectors_per_machine_type = int(mu.shape[0]  / len(labels) * 300) # nºvectors por tipo de maquina (3000 archivos por tipo de maquina)
+    # N_vectors_per_machine_type = int(mu.shape[0]  / len(labels) * 300) # nºvectors por tipo de maquina (3000 archivos por tipo de maquina)
     frame_labels = np.repeat(labels, N_vectors_per_file) # Crea etiquetas por frame repitiendo la etiqueta del archivo
     frame_sections = np.repeat(sections, N_vectors_per_file) # Seleciona la seccion a la que pertenece cada audio (y lo repite en cada vector)
+    frame_dirs = np.repeat(dirs, N_vectors_per_file)
+    frame_machine_types = np.repeat(machine_types,N_vectors_per_file)
     ids = np.repeat(np.arange(len(labels)), N_vectors_per_file) # Id dieferente para cada audio
-    frame_machine_types = np.repeat(np.arange(3), N_vectors_per_machine_type) # Id diferente para cada tipo de maquina
+    # frame_machine_types = np.repeat(np.arange(3), N_vectors_per_machine_type) # Id diferente para cada tipo de maquina
     print(f"labels tot = {len(labels)} len(frame_labels) = {len(frame_labels)}, mu.shape[0] = {mu.shape[0]}")
     assert len(frame_labels) == mu.shape[0], "Length of frame_labels must match number of mu vectors"
     # ============================
@@ -66,50 +96,107 @@ def main(mode, machine_type, dir_name):
     # ============================
     tsne = TSNE(
         n_components=2, # Poner a 3 para 3D
-        perplexity=5, # Probar 30
-        learning_rate=200,
+        perplexity=10, # Probar 30 (estructura global) o 5 (estructura local)
+        learning_rate=1000,
         max_iter=500,
         random_state=params.seed,
         init="pca"
     )
 
+# __________________Descartar algunos valores___________
+    # frame_labels=frame_labels[::5] # Para representar uno de cada n valores
+    # mu=mu[::5,:]
+    # frame_dirs = frame_dirs[::5]
+    # frame_labels=frame_labels[:-20000]
+    # mu=mu[:-20000,:]
+    # frame_dirs = frame_dirs[:-20000]
+    # logvar = logvar[:-20000]
+
     mu_tsne = tsne.fit_transform(mu)
+    print(mu.shape, frame_labels.shape)
+    # logvar_tsne = tsne.fit_transform(logvar)
     print("t-SNE finished")
    
-   # PLOT
-    fig = plt.figure(figsize=(8, 6)) # Para 2D
-    # ============================
-    # 2D
-    ax = fig.add_subplot(111)
-    # ============================
-    # 3D
-    # ax = fig.add_subplot(111, projection='3d')
-    # ============================
+    # df = pd.DataFrame({
+    #     'x': mu_tsne[:, 0],
+    #     'y': mu_tsne[:, 1],
+    #     'Color': frame_labels,   # Categoría de color
+    #     'Forma': frame_dirs      # Categoría de marcador
+    #     })
 
-    labels = []
-    if labels is not None:
-        scatter = ax.scatter(
-            mu_tsne[:, 0],
-            mu_tsne[:, 1],
-            # mu_tsne[:, 2], # Para 3D
-            # c=frame_labels,
-            # c=ids,
-            c=frame_machine_types,
-            s=10
-        )
-        plt.colorbar(scatter)
-    else:
-        ax.scatter( # Con ax.scatter para 3D
-            mu_tsne[:, 0],
-            mu_tsne[:, 1],
-            # mu_tsne[:, 2], # Para 3D
-            s=10
-        )
+    # fig = px.scatter(
+    #     df, x='x', y='y',
+    #     color='Color',
+    #     symbol='Forma',
+    #     title="t-SNE 2D: Colores por Etiqueta y Formas por Directorio",
+    #     opacity=0.8,
+    #     # labels permite renombrar los ejes si quieres
+    #     labels={'x': 'Dimensión 1', 'y': 'Dimensión 2'}
+    #     )
+    # fig.show()
+#    # PLOT
+    fig = plt.figure(figsize=(13, 5)) # Para 2D
+#     # ============================
+#     # 2D
+    ax1 = fig.add_subplot(121)
+#     # ============================
+#     # 3D
+#     # ax = fig.add_subplot(111, projection='3d')
+#     # ============================
 
-    plt.title(f't-SNE of VAE Latent Space (mu) for {machine_type} in {params.results_dir}')
-    ax.set_xlabel("t-SNE 1")
-    ax.set_ylabel("t-SNE 2")
-    # ax.set_zlabel("t-SNE 3")  # Para 3D
+#     scatter = ax1.scatter(
+#         mu_tsne[:, 0],
+#         mu_tsne[:, 1],
+#         # mu_tsne[:, 2], # Para 3D
+#         c=frame_labels,
+#         # c=ids,
+#         # c=frame_machine_types,
+#         s=10
+#     )
+#     plt.colorbar(scatter)
+    sns.scatterplot(x=mu_tsne[:, 0], 
+        y=mu_tsne[:, 1], 
+        # hue=frame_labels+2*frame_machine_types,    # Color según etiqueta (Normal/Anómalo)
+        hue=frame_machine_types,    # Color según tipo de maquia
+        # hue=frame_labels,    # Color según etiqueta (Normal/Anómalo)
+        # style=frame_dirs,    # FORMA según directorio
+        # style=frame_labels,    # FORMA según directorio
+        ax=ax1, 
+        palette="viridis",
+        s=20,
+        alpha=0.75)
+
+    ax1.set_title(f't-SNE of VAE Latent Space (mu) for {machine_type} in {results_dir}')
+    ax1.set_xlabel("t-SNE 1")
+    ax1.set_ylabel("t-SNE 2")
+    # # ax1.set_zlabel("t-SNE 3")  # Para 3D
+
+    # ax2 = fig.add_subplot(122)
+
+    # scatter = ax2.scatter(
+    #     logvar_tsne[:, 0],
+    #     logvar_tsne[:, 1],
+    #     # logvar_tsne[:, 2], # Para 3D
+    #     c=frame_labels,
+    #     # c=ids,
+    #     # c=frame_machine_types,
+    #     s=10
+    # )
+    # plt.colorbar(scatter)
+
+    # sns.scatterplot(x=logvar_tsne[:, 0], 
+    #     y=logvar_tsne[:, 1], 
+    #     hue=frame_labels,    # Color según etiqueta (Normal/Anómalo)
+    #     style=frame_dirs,    # FORMA según directorio
+    #     ax=ax2, 
+    #     # palette="viridis",
+    #     s=20,
+    #     alpha=0.75)
+    
+    # ax2.set_title(f't-SNE of VAE Latent Space (logvar) for {machine_type} in {results_dir}')
+    # ax2.set_xlabel("t-SNE 1")
+    # ax2.set_ylabel("t-SNE 2")
+
     plt.tight_layout()
     plt.show()
     # plt.show(block=True)
@@ -124,8 +211,8 @@ def main(mode, machine_type, dir_name):
 
 
 if __name__ == "__main__":
-    mode, _, machine_type, dir_name = com.command_line_chk('test')
+    mode, _, machine_type, _ = com.command_line_chk('test')
     if machine_type is None:
         com.logger.error(f"Introduzca un tipo de máquina con el parametro -m")
         sys.exit(-1)
-    main(mode, machine_type, dir_name)
+    main(mode, machine_type)

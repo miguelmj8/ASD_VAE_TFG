@@ -11,8 +11,29 @@ import sys
 # Cargar parámetros
 params = com.yaml_load('parameters.yaml')
 params = com.yaml_load('parametersCNN.yaml')
-machine_type = 'bearing'
-files_train, _ = com.file_list_generator(
+params = com.yaml_load('parametersCNNClass.yaml')
+
+vae = True
+
+audio_dir = "../data/data/valve/test/section_00_source_test_normal_0007_pat_01.wav"
+machine_type = "valve"
+# machine_type_model = machine_type
+# audio_dir = "../data/data/bearing/test/section_00_source_test_anomaly_0000_vel_6.wav"
+# machine_type = "bearing"
+# audio_dir = "../data/data/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.wav"
+# machine_type = "gearbox"
+# audio_dir = "../data/data/fan/test/section_00_source_test_normal_0030_m-n_W.wav"
+# machine_type = "fan"
+# audio_dir = "../data/data/slider/test/section_00_target_test_normal_0012_vel_600.wav"
+# machine_type = "slider"
+# audio_dir = "../data/data/ToyCar/test/section_00_source_test_anomaly_0027_car_E1_spd_28V_mic_1_noise_1.wav"
+# machine_type = "ToyCar"
+# audio_dir = "../data/data/ToyTrain/test/section_01_source_test_anomaly_0008_car_A1_spd_10_mic_1_noise_1.wav"
+# machine_type = "ToyTrain"
+
+machine_type_model = 'todos'
+
+files_train, _,_ = com.file_list_generator(
     # target_dir=None if machine_type == "todos" else os.path.join(params.data_dir, machine_type),
     target_dir = os.path.join(params.features_dir, machine_type),
     section_name="*",
@@ -20,39 +41,40 @@ files_train, _ = com.file_list_generator(
     mode=True,
     input_type='npy',
     params=params)
-
+n_frames = params.feature.n_frames
+n_hop_frames = params.feature.n_hop_frames
 data_train = com.file_list_to_data_CNN(
-    files=files_train,
+    params=params,
+    # files=files_train,
+    files = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_normal_0007_pat_01.npy'],
+    # files = ['../data/Features/melspec_311_128/bearing/test/section_00_source_test_anomaly_0000_vel_6.npy'],
+    # files = ['../data/Features/melspec_311_128/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.npy'],
+    # files = ['../data/Features/melspec_311_128/fan/test/section_00_source_test_normal_0030_m-n_W.npy'],
+    # files = ['../data/Features/melspec_311_128/slider/test/section_00_target_test_normal_0012_vel_600.npy'],
+    # files = ['../data/Features/melspec_311_128/ToyCar/test/section_00_source_test_anomaly_0027_car_E1_spd_28V_mic_1_noise_1.npy'],
+    # files = ['../data/Features/melspec_311_128/ToyTrain/test/section_01_source_test_anomaly_0008_car_A1_spd_10_mic_1_noise_1.npy'],
     msg="generate test_dataset",
     n_mels=params.feature.n_mels,
+    n_frames=n_frames,
+    n_hop_frames=n_hop_frames,
     n_fft=params.feature.n_fft,
     hop_length=params.feature.hop_length,
     input_type='npy',
     machine_type=machine_type,
     flag_npy=False,
     dir_name='train')
+logmelspecw=data_train
+# logmelspecw=data_train*0
 
-# Audio de ejemplo
-audio_dir = "../data/data/valve/test/section_00_source_test_normal_0007_pat_01.wav"
-# audio_dir = "../data/data/valve/test/section_00_source_test_anomaly_0010_pat_01.wav"
-# audio_dir = "../data/data/valve/test/section_00_source_test_anomaly_0022_pat_01.wav"
-audio_dir = "../data/data/valve/test/section_02_target_test_anomaly_0011_v1pat_04_v2pat_05.wav"
-machine_type = "valve"
-# audio_dir = "../data/data/bearing/test/section_00_source_test_anomaly_0000_vel_6.wav"
-# audio_dir = "../data/data/bearing/test/section_00_source_test_anomaly_0001_vel_6.wav"
-# audio_dir = "../data/data/bearing/test/section_02_target_test_normal_0049_vel_14_f-n_C.wav"
-# audio_dir = "../data/data/bearing/test/section_00_source_test_anomaly_0006_vel_22.wav"
-# machine_type = "bearing"
-
-ima_err_path = os.path.join(f'../data/ima_err',machine_type,f'test',f'ima_err8x8_{machine_type}.npy')
-ima_err_path = os.path.join(f'../data/ima_err',machine_type,f'test',f'ima_err_var8x8_{machine_type}.npy')
-ima_err = np.load(ima_err_path)
-print(f'________{ima_err.shape}')
-ima_err = np.mean(ima_err[:,0],axis=0)
-print(f'____________{ima_err.shape}')
+# ima_err_path = os.path.join(f'../data/ima_err',machine_type,f'test',f'ima_err8x8_{machine_type}.npy')
+# ima_err_path = os.path.join(f'../data/ima_err',machine_type,f'test',f'ima_err_var8x8_{machine_type}.npy')
+# ima_err = np.load(ima_err_path)
+# print(f'________{ima_err.shape}')
+# ima_err = np.mean(ima_err[:,0],axis=0)
+# print(f'____________{ima_err.shape}')
 
 # Cargar modelo
-model_file_path = "{model}/{machine_type}/model_{machine_type}.pth".format(model=params.model_dir, machine_type=machine_type)
+model_file_path = "{model}/{machine_type}/model_{machine_type}.pth".format(model=params.model_dir, machine_type=machine_type_model)
 model = torch.load(model_file_path, weights_only=False)
 print(f'Loaded model from {model_file_path}: {model}')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -64,6 +86,8 @@ y, sr = com.load_audio(audio_dir)
 
 # Calcular logmelspec original
 logmelspec = com.melspectrogram(y, sr, n_fft=params.feature.n_fft, hop_length=params.feature.hop_length, n_mels=params.feature.n_mels)
+# logmelspec = com.melspectrogram(y, sr, n_fft=params.feature.n_fft, hop_length=params.feature.hop_length, n_mels=params.feature.n_mels)*0
+# logmelspec = np.load(os.path.join(params.data_dir, machine_type, f'mean_img_{machine_type}.npy'))[0,:,:] # para imagen media completa
 
 # fig0, ax0 = plt.subplots(figsize=(8, 6))
 # com.plot_mag_melspectrogram(y, sr,n_fft=params.feature.n_fft, hop_length=params.feature.hop_length, n_mels=params.feature.n_mels, ax=ax0,title="Mel-Spectrogram")
@@ -73,13 +97,17 @@ logmelspec = com.melspectrogram(y, sr, n_fft=params.feature.n_fft, hop_length=pa
 # print(f'Loaded mean and std for {machine_type}: mean={m}, std={s}')
 # logmelspecstd = (logmelspec-m)/(s + 1e-8)  # Estandariza los datos
 
-m = np.load(os.path.join(params.data_dir, machine_type, f'mean_img_{machine_type}.npy'))[0,:,:]
-s = np.load(os.path.join(params.data_dir, machine_type, f'std_img_{machine_type}.npy'))[0,:,:]
+m = np.load(os.path.join(params.data_dir, machine_type, f'mean_img_{n_frames}_{n_hop_frames}_{machine_type}.npy'))[0,:,:]
+s = np.load(os.path.join(params.data_dir, machine_type, f'std_img_{n_frames}_{n_hop_frames}_{machine_type}.npy'))[0,:,:]
 print(f'Loaded mean and std for {machine_type}: mean={m.shape}, std={s.shape}, logmelspec: {logmelspec.shape}')
 # logmelspec=m*s
-logmelspecstd = (logmelspec-m)/(s + 1e-8)  # Estandariza los datos
 
-logmelspecCNN = np.expand_dims(logmelspecstd, axis=0)  # Agregar dimensión de batch
+# logmelspecw=data_train*0+m # inferencia con imagen media
+
+logmelspecstd = (logmelspecw-m)/(s + 1e-8)  # Estandariza los datos
+
+# logmelspecCNN = np.expand_dims(logmelspecstd, axis=0)  # Agregar dimensión de batch
+logmelspecCNN = logmelspecstd
 
 # logmelspec = mpimg.imread('C:/Users/migue/Desktop/vlcsnap-2025-09-15-19h41m17s704.png')
 # logmelspec = logmelspec[::-1,:,0]
@@ -97,8 +125,10 @@ logmelspecCNN = np.expand_dims(logmelspecstd, axis=0)  # Agregar dimensión de b
 with torch.no_grad():
     # input_tensor = torch.tensor(vectors, dtype=torch.float32).to(device) # Para lineal
     input_tensor = torch.tensor(logmelspecCNN, dtype=torch.float32).to(device) # Para CNN
-    # reconstructed, _, _, _ = model(input_tensor) # VAE
-    reconstructed, _ = model(input_tensor) # AE
+    if vae:
+        reconstructed, _, _, _, _ = model(input_tensor) # VAE | devuelve 5 elementos para class
+    else:
+        reconstructed, _, _, _ = model(input_tensor) # AE
     reconstructed = reconstructed.cpu().numpy()
 
 # Reconstruir el espectrograma aproximado
@@ -112,11 +142,16 @@ count = np.zeros_like(logmelspec)
 #             reconstructed_spec[:, i + t] += reconstructed[i, params.feature.n_mels * t : params.feature.n_mels * (t + 1)]
 #             count[:, i + t] += 1
 
+n_windows = logmelspecw.shape[0]
+for w in range(n_windows):
+    reconstructed_spec[:,w*n_hop_frames:w*n_hop_frames+n_frames] = reconstructed[w,:,:]*(s + 1e-8) + m
+n_frames_left=logmelspec.shape[1]-(w*n_hop_frames+n_frames) # number of frames that are not reconstructed
+# print(n_frames_left)
 # Evitar división por cero
 count[count == 0] = 1
 reconstructed_spec /= count
 
-reconstructed_spec = reconstructed[0, 0, :, :]*(s + 1e-8) + m  # Desestandariza el espectrograma reconstruido con CNN
+# reconstructed_spec = reconstructed[0, 0, :, :]*(s + 1e-8) + m  # Desestandariza el espectrograma reconstruido con CNN
 # reconstructed_spec = reconstructed_spec*(s + 1e-8) + m  # Desestandariza el espectrograma reconstruido
 # reconstructed_spec =reconstructed[0,0,:,:]+0.5
 # reconstructed_spec=reconstructed_spec[0,:,:]
@@ -145,8 +180,13 @@ ax2.set_title("Reconstructed Mel-Spectrogram")
 plt.colorbar(img2, ax=ax2, format="%+2.f dB")
 
 logmel_diff = np.abs(logmelspec - reconstructed_spec)
+if n_frames_left>0:
+    _logmel_diff = logmel_diff[:,:-n_frames_left] # Para saturar color de los ultimos frames, que no se han reconstruido
+else:
+    _logmel_diff=logmel_diff
+    # print(logmel_diff.max(),_logmel_diff.shape, _logmel_diff.max())
 img_diff = librosa.display.specshow(logmel_diff, sr=sr, hop_length=params.feature.hop_length,
-                                    y_axis='mel', x_axis='time', ax=ax3, vmin=0, vmax=logmel_diff.max())
+                                    y_axis='mel', x_axis='time', ax=ax3, vmin=0, vmax=_logmel_diff.max())
 ax3.set_title("Difference Mel-Spectrogram")
 plt.colorbar(img_diff, ax=ax3, format="%+2.f dB")
 print(f'potencia error= {logmel_diff.mean()}')

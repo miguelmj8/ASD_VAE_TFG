@@ -18,7 +18,7 @@ class VAE(nn.Module):
 
         self.fc_mu = nn.Linear(h_dim, z_dim)
         self.fc_logvar = nn.Linear(h_dim, z_dim) # comentar esta linea para AE
-
+        # meterle capa clasificacion jerarquica
         self.dec1 = nn.Linear(z_dim, h_dim)
         self.dec2 = nn.Linear(h_dim, h_dim)
         self.dec3 = nn.Linear(h_dim, h_dim)
@@ -45,7 +45,10 @@ class VAE(nn.Module):
     def forward_all(self, x):
         # VAE
         mu, logvar = self.encode(x.view(-1, self.x_dim)) # flatten in case x is not flat
-        z = self.reparameterize(mu, logvar)
+        if self.training:
+            z = self.reparameterize(mu, logvar)
+        else:
+            z=mu
         return self.decode(z), z, mu, logvar
         # AE
         # mu = self.encode(x.view(-1, self.x_dim))

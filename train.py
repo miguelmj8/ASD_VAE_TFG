@@ -23,10 +23,11 @@ if __name__ == "__main__":
     os.makedirs(params.model_dir, exist_ok=True)
 
     # Selecciona todas las carpetas dentro de data_dir
-    dirs, flag_npy, input_type = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+    dirs = [dirs] if isinstance(dirs, str) else dirs
     for target_dir in dirs:
         if machine_type == "todos":
             target_dir = None
@@ -58,7 +59,7 @@ if __name__ == "__main__":
             print(f'Model for {machine_type} already exists at {model_file_path}, skipping training.')
             continue
   
-        files, _ = com.file_list_generator(target_dir=target_dir, # Poner a None para que coja todos los datos | target_dir=target_dir para entrenar por separado
+        files, _,_ = com.file_list_generator(target_dir=target_dir, # Poner a None para que coja todos los datos | target_dir=target_dir para entrenar por separado
                                            section_name="*",
                                            dir_name="train",
                                            mode=mode,
@@ -76,7 +77,7 @@ if __name__ == "__main__":
                                      dir_name=dir_name)
 
         # number of vectors for each wave file
-        n_vectors_ea_file = int(data.shape[0] / len(files))
+        # N_vectors_per_file = int(data.shape[0] / len(files))
 
         model = vae_model.VAE(device, x_dim=x_dim, h_dim=h_dim, z_dim=z_dim).to(device)
         print(model)  # imprime la estructura de la red
@@ -137,7 +138,7 @@ if __name__ == "__main__":
 
             all_loss.append(epoch_loss / num_batches) # loss medio por epoch
             # CAMBIAR PRINT PARA QUE SALGA LA MEDIA
-            print(f'Epoch [{epoch+1}/{params.train.epochs}], Loss: {all_loss[-1]:.4f}') # Imprime la loss media de cada epoch
+            print(f'Epoch [{epoch+1}/{params.train.epochs}], Loss: {all_loss[-1]:.3f}') # Imprime la loss media de cada epoch
 
         all_loss = np.array(all_loss)
         os.makedirs(os.path.dirname(train_loss_path), exist_ok=True)

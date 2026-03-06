@@ -5,10 +5,12 @@ from tqdm import tqdm
 import numpy as np
 
 import common as com
-import model.cnn_vae as cnn_vae
+import model.cnn_vaeClass as cnn_vae
 
-params = com.yaml_load('parametersCNN.yaml')
-vae = False # flag para vae (true) o ae (false)
+params = com.yaml_load('parametersCNNClass.yaml')
+vae = True # flag para vae (true) o ae (false)
+n_classes = params.model.n_classes
+n_sub = params.model.n_sub
 
 if __name__ == "__main__":
     # check mode
@@ -25,8 +27,12 @@ if __name__ == "__main__":
 
     # Selecciona todas las carpetas dentro de data_dir
     input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    print(f"Using input type: {input_type}")
+    print(f"flag_npy: {flag_npy}")
+    # dirs, flag_npy, input_type = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
     dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-
+    
+    # print(f'Flag despues de select dirs {flag_npy}')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dirs = [dirs] if isinstance(dirs, str) else dirs
     for target_dir in dirs:
@@ -55,7 +61,10 @@ if __name__ == "__main__":
         if os.path.exists(model_file_path):
             com.logger.info("model exists")
             print(f'Model for {machine_type} already exists at {model_file_path}, skipping training.')
-            continue
+            if machine_type == 'todos':
+                break
+            else:
+                continue
 
         files, _, n_files_per_mt = com.file_list_generator(
             target_dir=target_dir,
@@ -64,6 +73,8 @@ if __name__ == "__main__":
             mode=mode,
             input_type=input_type,
             params=params)
+        archivos = [os.path.basename(f) for f in files]
+        sections = np.array([f.split("_")[1] for f in archivos], dtype=int)
         data = com.file_list_to_data_CNN(params,
                                          files,
                                          msg="generate train_dataset",
@@ -77,9 +88,10 @@ if __name__ == "__main__":
                                          flag_npy=flag_npy,
                                          dir_name=dir_name)
         N_windows_per_file = int(data.shape[0] / len(files))
-        n_windows_per_mt = N_windows_per_file*n_files_per_mt
-
-        model = cnn_vae.CNN_VAE(device=device, n_mels=params.feature.n_mels, n_frames=n_frames, z_dim=z_dim,vae=vae).to(device)
+        n_windows_per_mt = N_windows_per_file*n_files_per_mt # lista con numero de windows de cada machine type
+        machine_id = np.repeat(np.arange(len(n_windows_per_mt)),n_windows_per_mt)
+        sections_id = np.repeat(sections,N_windows_per_file)
+        model = cnn_vae.CNN_VAE(device=device, n_mels=params.feature.n_mels, n_frames=n_frames, z_dim=z_dim,n_classes=n_classes,n_sub=n_sub,vae=vae).to(device)
         print(model)
         total_params = sum(p.numel() for p in model.parameters())
         print(f'Total number of parameters: {total_params}')
@@ -110,8 +122,10 @@ if __name__ == "__main__":
                 np.save(std_img_path, s)
                 np.save(mean_img_path, m)
                 print(f'Saved mean and std for {machine_type} at {std_img_path}')
-            
-        dataset = torch.utils.data.TensorDataset(torch.tensor(data_standarized, dtype=torch.float32))
+        # print(data_standarized.shape,machine_id.shape,sections_id.shape)
+        dataset = torch.utils.data.TensorDataset(torch.tensor(data_standarized, dtype=torch.float32),
+                                                 torch.tensor(machine_id, dtype=torch.long),
+                                                 torch.tensor(sections_id, dtype=torch.long))
         generator = torch.Generator()
         generator.manual_seed(params.seed)
         dataloader = torch.utils.data.DataLoader(dataset,
@@ -127,7 +141,7 @@ if __name__ == "__main__":
             epoch_loss = 0.0
             num_batches = 0
             with tqdm(total=len(dataloader), desc=f'Epoch {epoch+1}/{params.train.epochs}', unit='batch') as pbar:
-                for batch_idx, (batch_data,) in enumerate(dataloader):
+                for batch_idx, (batch_data,m_id,s_id) in enumerate(dataloader):
                     batch_data = batch_data.to(device)
                     # No reshape needed, data is [batch, 1, n_mels, n_time_frames]
 
@@ -137,13 +151,16 @@ if __name__ == "__main__":
                     a_KLD = params.train.w_kl
 
                     if vae:
-                        reconstructed, z, mu, logvar = model(batch_data) # para VAE
+                        reconstructed, z, mu, logvar,class_prob = model(batch_data) # para VAE
                         # Compute loss
-                        reconst_loss, kld = cnn_vae.VAE_loss_function(reconstructed, batch_data, mu, logvar) # Para VAE
-                        loss = a_RECONST * reconst_loss + a_KLD * kld # Para VAE
+                        target_class = com.get_target_class(m_id,s_id,batch_data.size(0),device,n_classes=n_classes,n_sub=n_sub)
+                        reconst_loss, kld, class_loss = cnn_vae.VAE_loss_function(reconstructed, batch_data, mu, logvar, class_prob, target_class) # Para VAE
+                        loss = a_RECONST * reconst_loss + a_KLD * kld + 1 * class_loss # Para VAE
                     else:
-                        reconstructed, mu = model(batch_data) # para AE
-                        loss = cnn_vae.AE_loss_function(reconstructed, batch_data) # Para AE
+                        reconstructed, mu, class_prob = model(batch_data) # para AE
+                        target_class = com.get_target_class(m_id,s_id,batch_data.size(0),device,n_classes=n_classes,n_sub=n_sub)
+                        reconst_loss, class_loss = cnn_vae.AE_loss_function(reconstructed, batch_data, class_prob, target_class) # Para AE
+                        loss = reconst_loss + class_loss
                     loss.backward()
                     optimizer.step()
 

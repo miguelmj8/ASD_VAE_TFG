@@ -35,7 +35,8 @@ if __name__ == "__main__":
     os.makedirs(results_dir, exist_ok=True)
 
     # Selecciona todas las carpetas dentro de data/data (o data/features)
-    dirs, flag_npy, input_type = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
 
     # if mode: # Modo development
     #     performance_over_all = []
@@ -67,7 +68,7 @@ if __name__ == "__main__":
 
     else:
         todos = False
-
+        dirs = [dirs] if isinstance(dirs, str) else dirs
     for target_dir in dirs:
         print("=========================================")
         machine_type = os.path.split(target_dir)[1] # Para cada maquina
@@ -100,7 +101,7 @@ if __name__ == "__main__":
         print(f"Total parameters: {total_params}\nDevice: {device}")
 
 
-        files, labels = com.file_list_generator(target_dir=target_dir,
+        files, labels,_ = com.file_list_generator(target_dir=target_dir,
                                                 section_name="*",
                                                 dir_name="test",
                                                 mode=mode,
@@ -114,7 +115,7 @@ if __name__ == "__main__":
                                      n_fft=params.feature.n_fft, # Usar el mismo que en train
                                      hop_length=params.feature.hop_length,
                                      input_type=input_type,
-                                     mode=mode,
+                                    #  mode=mode,
                                      flag_npy=flag_npy,
                                      dir_name=dir_name)
         N_vectors_per_file = int(data.shape[0] / len(files)) # nºvectors por archivo
@@ -233,5 +234,5 @@ if __name__ == "__main__":
                     f.write(f"{auc},{f2},{threshold}\n")
                     
 
-            print(f"[OK] Evaluación completada para {machine_type}. Datos guardados en {results_dir}")
-            print(f"AUC = {auc:.4f}, F2 = {f2:.4f}, Threshold = {threshold:.4f}")
+            print(f"[OK] Evaluación completada para [{machine_type}]. Datos guardados en {results_dir}")
+            print(f"AUC = {auc:.3f}, F2 = {f2:.3f}, Threshold = {threshold:.3f}")

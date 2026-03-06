@@ -4,12 +4,14 @@ import torch.nn.functional as F
 
 class CNN_VAE(nn.Module):
 
-    def __init__(self, device, n_mels, n_frames, z_dim=32, vae = True):
+    def __init__(self, device, n_mels, n_frames, z_dim=32, n_classes = 3, n_sub = 3, vae = True):
         super().__init__()
         self.device = device
         self.z_dim = z_dim
         self.flatten_dim = 64*n_mels//8*n_frames//8
         self.vae = vae
+        self.n_classes = n_classes
+        self.n_sub = n_sub # numero de subclases (por section)
         # Encoder convolucional
         # Entrada: 1 x 128 x 311
         self.enc1 = nn.Conv2d(1, 16, kernel_size=(3,3), stride=(2,2), padding=(1,1))  # -> 16 x nmels/2 (64) x nframes/2 (156)
@@ -21,6 +23,12 @@ class CNN_VAE(nn.Module):
         self.fc_mu = nn.Linear(self.flatten_dim, z_dim)
         if self.vae:
             self.fc_logvar = nn.Linear(self.flatten_dim, z_dim)  # comentar para AE
+
+        # self.classifier = nn.Sequential(nn.Linear(z_dim, z_dim),
+        #                                 nn.ReLU(),
+        #                                 nn.Linear(z_dim,n_classes*n_sub))
+        self.classifier = nn.Sequential(nn.Linear(z_dim, n_classes*n_sub))
+
 
         # Decoder lineal inicial para expandir desde latente
         self.dec_fc = nn.Linear(z_dim, self.flatten_dim)
@@ -73,7 +81,7 @@ class CNN_VAE(nn.Module):
     # -----------------
     # Forward completo
     # -----------------
-    def forward_all(self, x):
+    def forward(self, x):
         # VAE
         if self.vae:
             mu, logvar = self.encode(x)
@@ -81,17 +89,23 @@ class CNN_VAE(nn.Module):
                 z = self.reparameterize(mu, logvar)
             else:
                 z = mu
-            return self.decode(z), z, mu, logvar
         # AE
         else:
             mu = self.encode(x)
-            return self.decode(mu), mu
+        
+        logits = self.classifier(mu)
+        class_prob = torch.sigmoid(logits).view(-1, self.n_classes, self.n_sub)
 
-    def forward(self, x):
-        return self.forward_all(x)
+        if self.vae:
+            return self.decode(z), z, mu, logvar, class_prob
+        else:
+            return self.decode(mu), mu, class_prob
+
+    # def forward(self, x):
+    #     return self.forward_all(x)
 
 # Loss
-def VAE_loss_function(recon_x, x, mu, logvar):
+def VAE_loss_function(recon_x, x, mu, logvar, pred_probs, target_class):
     """Loss function for VAE which consists of reconstruction and KL divergence losses.
     """
     # Reconstruction loss puedo usar mse, smooth_l1_loss o l1_loss
@@ -100,10 +114,15 @@ def VAE_loss_function(recon_x, x, mu, logvar):
     # KL Divergence loss F.kl_div
     kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
-    return recon_loss, kld_loss
+    # clasificacion tipo maquina (0.5) y seccion (1)
+    class_loss = F.binary_cross_entropy(pred_probs, target_class, reduction='sum')
 
-def AE_loss_function(recon_x, x):
+    return recon_loss, kld_loss, class_loss
+
+def AE_loss_function(recon_x, x, pred_probs, target_class):
     """Loss function for AE which is just the reconstruction loss.
     """
     recon_loss = F.mse_loss(recon_x, x, reduction='sum')
-    return recon_loss
+    class_loss = F.binary_cross_entropy(pred_probs, target_class, reduction='sum')
+    
+    return recon_loss, class_loss

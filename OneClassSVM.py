@@ -1,10 +1,11 @@
 import numpy as np
 import os
 import sys
+import joblib
 from tqdm import tqdm
 from sklearn.svm import OneClassSVM
 from sklearn.ensemble import IsolationForest
-from sklearn.metrics import roc_auc_score, fbeta_score, accuracy_score, confusion_matrix, ConfusionMatrixDisplay, RocCurveDisplay
+from sklearn.metrics import roc_auc_score, average_precision_score, fbeta_score, accuracy_score, confusion_matrix, ConfusionMatrixDisplay, RocCurveDisplay
 from scipy.spatial.distance import mahalanobis
 import matplotlib.pyplot as plt
 import torch
@@ -13,13 +14,13 @@ import common as com
 
 np.set_printoptions(precision=3, suppress=True)
 
-params = com.yaml_load(yaml_file="./parametersCNN.yaml")
+# params = com.yaml_load(yaml_file="./parametersCNN.yaml")
 params = com.yaml_load(yaml_file="./parametersCNNClass.yaml")
 
 section = 0
 
 if __name__ == "__main__":
-    mode, input_type, machine_type, dir_name = com.command_line_chk('test')
+    mode, input_type, machine_type, dir_name, _ = com.command_line_chk('test')
     # if machine_type is None:
     #     com.logger.error(f'Introduzca un tipo de máquina o "todos" con el parametro -m')
     #     sys.exit(-1)
@@ -73,7 +74,8 @@ if __name__ == "__main__":
             machine_type=machine_type,
             flag_npy=flag_npy,
             dir_name='train')
-        
+        # data_train = com.add_noise(data_train,0.1)
+
         data_eval = com.file_list_to_data_CNN(
             params=params,
             files=files_eval,
@@ -87,6 +89,7 @@ if __name__ == "__main__":
             machine_type=machine_type,
             flag_npy=flag_npy,
             dir_name='test')
+        # data_eval = com.add_noise(data_eval,0.1)
         
         N_windows_per_file = int(data_train.shape[0] / len(files_train))
         N_windows_tot_train = int(data_train.shape[0])
@@ -107,6 +110,8 @@ if __name__ == "__main__":
         logvar_train = np.load(logvar_tain_path)
         loss_train_path = os.path.join(params.model_dir, machine_type, f'reconst_loss_{machine_type}.csv')
         loss_train = np.genfromtxt(loss_train_path, delimiter=',', skip_header=1) # reconst_loss(mean),variance,curtosis,max
+        kld_train_path = os.path.join(params.model_dir, machine_type, f'kld_{machine_type}.csv')
+        kld_train = np.genfromtxt(kld_train_path, delimiter=',', skip_header=0)
         ima_err_train_path = os.path.join(f'../data/ima_err',machine_type,'train',f'ima_err8x8_{machine_type}.npy')
         ima_err_train = np.load(ima_err_train_path)
         ima_err_var_train_path = os.path.join(f'../data/ima_err',machine_type,'train',f'ima_err_var8x8_{machine_type}.npy')
@@ -118,28 +123,25 @@ if __name__ == "__main__":
         logvar_eval = np.load(logvar_eval_path)
         loss_eval_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'reconst_loss_{machine_type}.csv')
         loss_eval = np.genfromtxt(loss_eval_path, delimiter=',', skip_header=1)
+        kld_eval_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, f'kld_{machine_type}.csv')
+        kld_eval = np.genfromtxt(kld_eval_path, delimiter=',', skip_header=0)
         ima_err_eval_path = os.path.join(f'../data/ima_err',machine_type,'test',f'ima_err8x8_{machine_type}.npy')
         ima_err_eval = np.load(ima_err_eval_path)
         ima_err_var_eval_path = os.path.join(f'../data/ima_err',machine_type,'test',f'ima_err_var8x8_{machine_type}.npy')
         ima_err_var_eval = np.load(ima_err_var_eval_path)
 
-        # print(ima_err_eval.shape)
-        dct_train_mean = dct.dct_2d(torch.from_numpy(ima_err_train), norm='ortho').squeeze(1)
-        dct_eval_mean = dct.dct_2d(torch.from_numpy(ima_err_eval), norm='ortho').squeeze(1)
-        dct_train_mean = dct_train_mean.numpy()
-        dct_train_mean = dct_train_mean.reshape(dct_train_mean.shape[0],-1) # vectoriza imagen para poder introducir al 1CSVM
-        dct_eval_mean = dct_eval_mean.numpy()
-        dct_eval_mean = dct_eval_mean.reshape(dct_eval_mean.shape[0],-1)
+        mu_train = mu_train[sections_train_id>=section]
+        logvar_train = logvar_train[sections_train_id>=section]
+        loss_train = loss_train[sections_train_id>=section]
+        kld_train = kld_train[sections_train_id>=section]
 
-        dct_train_var = dct.dct_2d(torch.from_numpy(ima_err_var_train), norm='ortho').squeeze(1)
-        dct_eval_var = dct.dct_2d(torch.from_numpy(ima_err_var_eval), norm='ortho').squeeze(1)
-        dct_train_var = dct_train_var.numpy()
-        dct_train_var = dct_train_var.reshape(dct_train_var.shape[0],-1)
-        dct_eval_var = dct_eval_var.numpy()
-        dct_eval_var =dct_eval_var.reshape(dct_eval_var.shape[0],-1)
+        mu_eval = mu_eval[sections_eval_id>=section]
+        logvar_eval = logvar_eval[sections_eval_id>=section]
+        loss_eval = loss_eval[sections_eval_id>=section]
+        kld_eval = kld_eval[sections_eval_id>=section]
 
-        # attributes_train = mu_train[np.repeat(sections_train,N_windows_per_file)>=section]
-        # attributes_eval = mu_eval[np.repeat(sections_eval,N_windows_per_file)>=section]
+        # attributes_train = mu_train[np.repeat(sections_train,N_windows_per_file)==section]
+        # attributes_eval = mu_eval[np.repeat(sections_eval,N_windows_per_file)==section]
         attributes_train_mu = mu_train
         attributes_eval_mu = mu_eval
 
@@ -159,38 +161,78 @@ if __name__ == "__main__":
         scores_mahalanobis_train = np.array(scores_mahalanobis_train)
         scores_mahalanobis_eval = np.array(scores_mahalanobis_eval)
 
-        attributes_train_mu_mah = scores_mahalanobis_train.reshape(N_windows_tot_train//N_windows_per_file,-1)
-        attributes_train_mu_mah = np.partition(attributes_train_mu_mah, 20, axis=1)[:,:20]
-        attributes_eval_mu_mah = scores_mahalanobis_eval.reshape(N_windows_tot_eval//N_windows_per_file,-1)
-        attributes_eval_mu_mah = np.partition(attributes_eval_mu_mah, 20, axis=1)[:,:20]
+        att_train_mu_mah_todos = scores_mahalanobis_train.reshape(N_windows_tot_train//N_windows_per_file,-1) # sahpe nfiles, nwindowsperfile
+        attributes_train_mu_mah = att_train_mu_mah_todos
 
+        att_eval_mu_mah_todos = scores_mahalanobis_eval.reshape(N_windows_tot_eval//N_windows_per_file,-1)
+        attributes_eval_mu_mah = att_eval_mu_mah_todos
+
+        attributes_train_mu_mah_dct = dct.dct(torch.from_numpy(att_train_mu_mah_todos), norm='ortho')
+        attributes_eval_mu_mah_dct = dct.dct(torch.from_numpy(att_eval_mu_mah_todos), norm='ortho')
+        attributes_train_mu_mah_dct = attributes_train_mu_mah_dct.reshape(N_windows_tot_train//N_windows_per_file,-1)
+        attributes_eval_mu_mah_dct = attributes_eval_mu_mah_dct.reshape(N_windows_tot_eval//N_windows_per_file,-1)
+
+        att_train_mu_mah_todos_s = np.sort(att_train_mu_mah_todos, axis=1) # Atributos de distancias de Mahalanobis para cada ventana ordenados
+        att_train_mu_mah_todos_s = (att_train_mu_mah_todos_s-np.mean(att_train_mu_mah_todos_s,axis=1,keepdims=True))/np.std(att_train_mu_mah_todos_s,axis=1,keepdims=True)
+        att_eval_mu_mah_todos_s = np.sort(att_eval_mu_mah_todos, axis=1)
+        att_eval_mu_mah_todos_s = (att_eval_mu_mah_todos_s-np.mean(att_eval_mu_mah_todos_s,axis=1,keepdims=True))/np.std(att_eval_mu_mah_todos_s,axis=1,keepdims=True)
+        # att_train_mu_mah_todos_s = att_train_mu_mah_todos # Atributos de distancias de Mahalanobis para cada ventana
+        # att_eval_mu_mah_todos_s = att_eval_mu_mah_todos
+
+        avg_mah = np.mean(att_train_mu_mah_todos_s,axis=0) # mu_mah promedio de cada ventana (una vez ordenadas) | shape 1,nwindowsperfile
+        cov_matrix_mah = np.cov(att_train_mu_mah_todos_s, rowvar=False)
+        inv_cov_matrix_mah = np.linalg.pinv(cov_matrix_mah)
+        # print(avg_mah)
+        scores_mahalanobis_train_mah = []
+        scores_mahalanobis_eval_mah = []
+        for mu_mah_window in att_eval_mu_mah_todos_s:
+            dist = mahalanobis(mu_mah_window, avg_mah, inv_cov_matrix_mah)
+            scores_mahalanobis_eval_mah.append(dist)
+        for mu_mah_window in att_train_mu_mah_todos_s:
+            dist = mahalanobis(mu_mah_window, avg_mah, inv_cov_matrix_mah)
+            scores_mahalanobis_train_mah.append(dist)
+
+        scores_mahalanobis_train_mah = np.array(scores_mahalanobis_train_mah)
+        scores_mahalanobis_eval_mah = np.array(scores_mahalanobis_eval_mah)
+        attributes_train_mu_mah_mah = scores_mahalanobis_train_mah.reshape(N_windows_tot_train//N_windows_per_file,-1)
+        attributes_eval_mu_mah_mah = scores_mahalanobis_eval_mah.reshape(N_windows_tot_eval//N_windows_per_file,-1)
+        print(attributes_train_mu_mah_mah.shape)
         # attributes_train_mu = np.var(attributes_train_mu.reshape(attributes_train_mu.shape[0]//N_windows_per_file,N_windows_per_file,-1),axis=1)
         # attributes_eval_mu = np.var(attributes_eval_mu.reshape(attributes_eval_mu.shape[0]//N_windows_per_file,N_windows_per_file,-1),axis=1)
         attributes_train_mu = attributes_train_mu.reshape(N_windows_tot_train//N_windows_per_file,-1)
         attributes_eval_mu = attributes_eval_mu.reshape(N_windows_tot_eval//N_windows_per_file,-1)
+        # attributes_train_mu_dct = dct.dct_2d(torch.from_numpy(attributes_train_mu.reshape(N_windows_tot_train//N_windows_per_file,N_windows_per_file,-1)), norm='ortho')
+        # attributes_eval_mu_dct = dct.dct_2d(torch.from_numpy(attributes_eval_mu.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1)), norm='ortho')
+        attributes_train_mu_dct = dct.dct(torch.from_numpy(attributes_train_mu.reshape(N_windows_tot_train//N_windows_per_file,N_windows_per_file,-1).transpose(0,2,1)), norm='ortho')
+        attributes_eval_mu_dct = dct.dct(torch.from_numpy(attributes_eval_mu.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1).transpose(0,2,1)), norm='ortho')
+        attributes_train_mu_dct = attributes_train_mu_dct.reshape(N_windows_tot_train//N_windows_per_file,-1)
+        attributes_eval_mu_dct = attributes_eval_mu_dct.reshape(N_windows_tot_eval//N_windows_per_file,-1)
+        # print(attributes_train_mu_dct.shape)
+
         # attributes_train_mu = np.partition(attributes_train_mu, -5, axis=1)[:,-5:]
         # attributes_eval_mu = np.partition(attributes_eval_mu, -5, axis=1)[:,-5:]
         # as_mu = np.mean(attributes_eval_mu-np.mean(attributes_eval_mu,axis=0),axis=1)
         
         attributes_train_logvar = logvar_train.reshape(N_windows_tot_train//N_windows_per_file,-1)
         attributes_eval_logvar = logvar_eval.reshape(N_windows_tot_eval//N_windows_per_file,-1)
+        # attributes_train_logvar_dct = dct.dct_2d(torch.from_numpy(attributes_train_logvar.reshape(N_windows_tot_train//N_windows_per_file,N_windows_per_file,-1)), norm='ortho')
+        # attributes_eval_logvar_dct = dct.dct_2d(torch.from_numpy(attributes_eval_logvar.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1)), norm='ortho')
+        attributes_train_logvar_dct = dct.dct(torch.from_numpy(attributes_train_logvar.reshape(N_windows_tot_train//N_windows_per_file,N_windows_per_file,-1).transpose(0,2,1)), norm='ortho')
+        attributes_eval_logvar_dct = dct.dct(torch.from_numpy(attributes_eval_logvar.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1).transpose(0,2,1)), norm='ortho')
+        attributes_train_logvar_dct = attributes_train_logvar_dct.reshape(N_windows_tot_train//N_windows_per_file,-1)
+        attributes_eval_logvar_dct = attributes_eval_logvar_dct.reshape(N_windows_tot_eval//N_windows_per_file,-1)
 
-        # attributes_train = logvar_train
-        # attributes_eval = logvar_eval
-        attributes_train = loss_train[:,[0,1,2,3,4]] # reconst_loss(mean), class, variance, curtosis,max | .reshape(-1,1) si hace falta
-        attributes_eval = loss_eval[:,[0,1,2,3,4]]
-        # attributes_train = data_train.reshape(data_train.shape[0],-1)
-        # attributes_eval = data_eval.reshape(data_eval.shape[0],-1)
+        attributes_train_loss = loss_train[:,[0,1,2]] # reconst_loss(mean), variance, class | .reshape(-1,1) si hace falta
+        attributes_eval_loss = loss_eval[:,[0,1,2]]   # reconst_loss(mean), variance, max para noClass
+        attributes_train_kld = kld_train
+        attributes_eval_kld = kld_eval
+        # attributes_train_loss = np.column_stack([attributes_train_loss,attributes_train_kld])
+        # attributes_eval_loss = np.column_stack([attributes_eval_loss,attributes_eval_kld])
+
         # attributes_train = ima_err_train.reshape(ima_err_train.shape[0],-1)
         # attributes_eval = ima_err_eval.reshape(ima_err_eval.shape[0],-1)
         # attributes_train = ima_err_var_train.reshape(ima_err_var_train.shape[0],-1)
         # attributes_eval = ima_err_var_eval.reshape(ima_err_var_eval.shape[0],-1)
-        # attributes_train = np.partition(attributes_train,-2,axis=1)[:,-2:] # Aplicar dct2d a imaerr de 8x8
-        # attributes_eval = np.partition(attributes_eval,-2,axis=1)[:,-2:]
-        # attributes_train = np.max(dct_train_var,axis=1).reshape(-1,1) # Aplicar dct2d a imaerr de 8x8
-        # attributes_eval = np.max(dct_eval_var,axis=1).reshape(-1,1)
-        # attributes_train = dct_train_mean
-        # attributes_eval = dct_eval_mean
         # attributes_train = dct_train_var # Aplicar dct2d a imaerr de 8x8
         # attributes_eval = dct_eval_var
         # attributes_train = np.concatenate((attributes_train, loss_train[:,1].reshape(-1,1)), axis=1)
@@ -200,37 +242,74 @@ if __name__ == "__main__":
         # attributes_train = dct.dct(torch.from_numpy(attributes_train.reshape(N_windows_tot_train//N_windows_per_file,N_windows_per_file,-1)), norm='ortho')
         # attributes_eval = dct.dct(torch.from_numpy(attributes_eval.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1)), norm='ortho')
         
-        print(f'nwindowstrain: {N_windows_tot_train}, nwindeval:{N_windows_tot_eval}, nwindperfile: {N_windows_per_file}')
-        attributes_train = np.mean(attributes_train.reshape(attributes_train.shape[0]//N_windows_per_file,N_windows_per_file,-1),axis=1)
-        attributes_eval = np.mean(attributes_eval.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1),axis=1)
-        # attributes_train = attributes_train.reshape(N_windows_tot_train//N_windows_per_file,-1)
-        # attributes_eval = attributes_eval.reshape(N_windows_tot_eval//N_windows_per_file,-1)
-        # attributes_train = np.concatenate((attributes_train, sections_train.reshape(-1,1)), axis=1) # para incluir loss y section
-        # attributes_eval = np.concatenate((attributes_eval, sections_eval.reshape(-1,1)), axis=1)
+        # print(f'nwindowstrain: {N_windows_tot_train}, nwindeval:{N_windows_tot_eval}, nwindperfile: {N_windows_per_file}')
+        # attributes_train_loss = np.mean(attributes_train_loss.reshape(attributes_train_loss.shape[0]//N_windows_per_file,N_windows_per_file,-1),axis=1)
+        # attributes_eval_loss = np.mean(attributes_eval_loss.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1),axis=1)
+        # attributes_train_kld = np.mean(attributes_train_kld.reshape(attributes_train_kld.shape[0]//N_windows_per_file,N_windows_per_file,-1),axis=1)
+        # attributes_eval_kld = np.mean(attributes_eval_kld.reshape(attributes_eval_kld.shape[0]//N_windows_per_file,N_windows_per_file,-1),axis=1)
+        attributes_train_loss = attributes_train_loss.reshape(N_windows_tot_train//N_windows_per_file,-1)
+        attributes_eval_loss = attributes_eval_loss.reshape(N_windows_tot_eval//N_windows_per_file,-1)
+        # attributes_train_loss_dct = dct.dct_2d(torch.from_numpy(attributes_train_loss.reshape(N_windows_tot_train//N_windows_per_file,N_windows_per_file,-1)), norm='ortho')
+        # attributes_eval_loss_dct = dct.dct_2d(torch.from_numpy(attributes_eval_loss.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1)), norm='ortho')
+        attributes_train_loss_dct = dct.dct(torch.from_numpy(attributes_train_loss.reshape(N_windows_tot_train//N_windows_per_file,N_windows_per_file,-1).transpose(0,2,1)), norm='ortho')
+        attributes_eval_loss_dct = dct.dct(torch.from_numpy(attributes_eval_loss.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1).transpose(0,2,1)), norm='ortho')
+        attributes_train_loss_dct = attributes_train_loss_dct.reshape(N_windows_tot_train//N_windows_per_file,-1)
+        attributes_eval_loss_dct = attributes_eval_loss_dct.reshape(N_windows_tot_eval//N_windows_per_file,-1)
 
-        # attributes_train = dct.dct_2d(torch.from_numpy(attributes_train.reshape(N_windows_tot_train//N_windows_per_file,N_windows_per_file,-1)), norm='ortho')
-        # attributes_eval = dct.dct_2d(torch.from_numpy(attributes_eval.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1)), norm='ortho')
-        # # attributes_train = dct.dct(torch.from_numpy(attributes_train.reshape(N_windows_tot_train//N_windows_per_file,N_windows_per_file,-1).transpose(0,2,1)), norm='ortho')
-        # # attributes_eval = dct.dct(torch.from_numpy(attributes_eval.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1).transpose(0,2,1)), norm='ortho')
-        # attributes_train=attributes_train.reshape(attributes_train.shape[0],-1)
-        # attributes_eval=attributes_eval.reshape(attributes_eval.shape[0],-1)
-        # print(mu_train[1:2,:])
-        # sys.exit()
+        attributes_train_kld = attributes_train_kld.reshape(N_windows_tot_train//N_windows_per_file,-1)
+        attributes_eval_kld = attributes_eval_kld.reshape(N_windows_tot_eval//N_windows_per_file,-1)
+        attributes_train_kld_dct = dct.dct(torch.from_numpy(attributes_train_kld), norm='ortho')
+        attributes_eval_kld_dct = dct.dct(torch.from_numpy(attributes_eval_kld), norm='ortho')
+        attributes_train_kld_dct = attributes_train_kld_dct.reshape(N_windows_tot_train//N_windows_per_file,-1)
+        attributes_eval_kld_dct = attributes_eval_kld_dct.reshape(N_windows_tot_eval//N_windows_per_file,-1)
 
-        # print(f"attributers: {attributes_train.shape} size mu: {mu_eval.shape} loss: {loss_eval[:,0].shape}, total: {np.concatenate((mu_eval, loss_eval),axis=1).shape}, labels: {labels_eval.shape}")
-        print(f'attributes mu: {attributes_train_mu.shape}')
+        avg_kld = np.mean(attributes_train_kld,axis=0) # mu promedio para cada dimension shape zdim cols
+        cov_matrix_kld_mah = np.cov(attributes_train_kld, rowvar=False)
+        inv_cov_matrix_kld_mah = np.linalg.pinv(cov_matrix_kld_mah)
 
+        scores_mahalanobis_train_kld = []
+        scores_mahalanobis_eval_kld = []
+        for kld_window in attributes_eval_kld:
+            dist = mahalanobis(kld_window, avg_kld, inv_cov_matrix_kld_mah)
+            scores_mahalanobis_eval_kld.append(dist)
+        for kld_window in attributes_train_kld:
+            dist = mahalanobis(kld_window, avg_kld, inv_cov_matrix_kld_mah)
+            scores_mahalanobis_train_kld.append(dist)
+
+        scores_mahalanobis_train_kld = np.array(scores_mahalanobis_train_kld)
+        scores_mahalanobis_eval_kld = np.array(scores_mahalanobis_eval_kld)
+        attributes_train_kld_mah = scores_mahalanobis_train_kld.reshape(N_windows_tot_train//N_windows_per_file,-1)
+        attributes_eval_kld_mah = scores_mahalanobis_eval_kld.reshape(N_windows_tot_eval//N_windows_per_file,-1)
+        
         # decision_function = score_samples - offset_ tanto en ocsvm como en if, asi que decision_function esta centrado en cero
         # Train One-Class SVM
         # oc_svm = OneClassSVM(kernel='poly', degree=3, gamma=0.05, nu=0.4, shrinking=True, cache_size=200, verbose=True, max_iter=-1)
         # oc_svm = OneClassSVM(kernel='rbf', degree=6, gamma=0.0002, nu=0.4, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
-        # oc_svm = OneClassSVM(kernel='sigmoid', degree=4, gamma=1.0, nu=0.1, cache_size=200, verbose=True, max_iter=-1)
-        # oc_svm = OneClassSVM(kernel='linear', degree=4, gamma=0.01, nu=0.2, cache_size=200, verbose=True, max_iter=-1)
+
+        # oc_svm_mu = OneClassSVM(kernel='rbf', degree=6, gamma=0.0002, nu=0.2, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
+        # oc_svm_logvar = OneClassSVM(kernel='rbf', degree=6, gamma=0.0002, nu=0.2, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
+        # oc_svm_mu_mah = OneClassSVM(kernel='rbf', degree=6, gamma=0.0002, nu=0.2, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
+        # oc_svm_loss = OneClassSVM(kernel='rbf', degree=6, gamma=0.0002, nu=0.2, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
+        # oc_svm_kld = OneClassSVM(kernel='rbf', degree=6, gamma=0.002, nu=0.0000001, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
+
+        # oc_svm_mu_dct = OneClassSVM(kernel='rbf', degree=6, gamma=0.0002, nu=0.2, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
+        # oc_svm_logvar_dct = OneClassSVM(kernel='rbf', degree=6, gamma=1, nu=0.0002, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
+        # oc_svm_mu_mah_dct = OneClassSVM(kernel='rbf', degree=6, gamma=0.0002, nu=0.2, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
+        # oc_svm_loss_dct = OneClassSVM(kernel='rbf', degree=6, gamma=1, nu=0.0002, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
+        # oc_svm_kld_dct = OneClassSVM(kernel='rbf', degree=6, gamma=1, nu=0.0002, shrinking=True, cache_size=500, verbose=False, max_iter=-1)
 
         # ISOLATION FOREST
-        oc_svm_mu = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.1)
-        oc_svm_logvar = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.1)
-        oc_svm_mu_mah = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.1)
+        oc_svm_mu = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.2, random_state=params.seed)
+        oc_svm_logvar = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.2, random_state=params.seed)
+        oc_svm_mu_mah = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.2, random_state=params.seed)
+        oc_svm_loss = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.2, random_state=params.seed,max_samples='auto')
+        oc_svm_kld = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.2, random_state=params.seed,max_samples='auto')
+
+        oc_svm_mu_dct = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.2, random_state=params.seed)
+        oc_svm_logvar_dct = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.2, random_state=params.seed)
+        oc_svm_mu_mah_dct = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.2, random_state=params.seed)
+        oc_svm_loss_dct = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.2, random_state=params.seed,max_samples='auto')
+        oc_svm_kld_dct = IsolationForest(n_estimators=100, bootstrap=True, contamination=0.2, random_state=params.seed,max_samples='auto')
 
         if dir_name == 'test':
             # Fit con los mu de los datos de train (solo normales)
@@ -243,42 +322,134 @@ if __name__ == "__main__":
             labels_pred_mu = oc_svm_mu.predict(attributes_eval_mu) # Devuelve 1 para inliers y -1 para outliers
             anomaly_scores_mu = oc_svm_mu.decision_function(attributes_eval_mu) # Puntuacion negativa para mas anomalo
             anomaly_scores_train_mu = oc_svm_mu.decision_function(attributes_train_mu)
+
+            oc_svm_mu_dct.fit(attributes_train_mu_dct)
+            labels_pred_mu_dct = oc_svm_mu_dct.predict(attributes_eval_mu_dct) # Devuelve 1 para inliers y -1 para outliers
+            anomaly_scores_mu_dct = oc_svm_mu_dct.decision_function(attributes_eval_mu_dct) # Puntuacion negativa para mas anomalo
+            anomaly_scores_train_mu_dct = oc_svm_mu_dct.decision_function(attributes_train_mu_dct)
             
             oc_svm_logvar.fit(attributes_train_logvar)
             labels_pred_logvar = oc_svm_logvar.predict(attributes_eval_logvar) # Devuelve 1 para inliers y -1 para outliers
             anomaly_scores_logvar = oc_svm_logvar.decision_function(attributes_eval_logvar) # Puntuacion negativa para mas anomalo
             anomaly_scores_train_logvar = oc_svm_logvar.decision_function(attributes_train_logvar)
 
+            oc_svm_logvar_dct.fit(attributes_train_logvar_dct)
+            labels_pred_logvar_dct = oc_svm_logvar_dct.predict(attributes_eval_logvar_dct) # Devuelve 1 para inliers y -1 para outliers
+            anomaly_scores_logvar_dct = oc_svm_logvar_dct.decision_function(attributes_eval_logvar_dct) # Puntuacion negativa para mas anomalo
+            anomaly_scores_train_logvar_dct = oc_svm_logvar_dct.decision_function(attributes_train_logvar_dct)
+
             oc_svm_mu_mah.fit(attributes_train_mu_mah)
             labels_pred_mu_mah = oc_svm_mu_mah.predict(attributes_eval_mu_mah) # Devuelve 1 para inliers y -1 para outliers
             anomaly_scores_mu_mah = oc_svm_mu_mah.decision_function(attributes_eval_mu_mah) # Puntuacion negativa para mas anomalo
             anomaly_scores_train_mu_mah = oc_svm_mu_mah.decision_function(attributes_train_mu_mah)
 
+            oc_svm_mu_mah_dct.fit(attributes_train_mu_mah_dct)
+            labels_pred_mu_mah_dct = oc_svm_mu_mah_dct.predict(attributes_eval_mu_mah_dct) # Devuelve 1 para inliers y -1 para outliers
+            anomaly_scores_mu_mah_dct = oc_svm_mu_mah_dct.decision_function(attributes_eval_mu_mah_dct) # Puntuacion negativa para mas anomalo
+            anomaly_scores_train_mu_mah_dct = oc_svm_mu_mah_dct.decision_function(attributes_train_mu_mah_dct)
+                        
+            oc_svm_loss.fit(attributes_train_loss)
+            labels_pred_loss = oc_svm_loss.predict(attributes_eval_loss) # Devuelve 1 para inliers y -1 para outliers
+            anomaly_scores_loss = oc_svm_loss.decision_function(attributes_eval_loss) # Puntuacion negativa para mas anomalo
+            anomaly_scores_train_loss = oc_svm_loss.decision_function(attributes_train_loss)
+
+            oc_svm_loss_dct.fit(attributes_train_loss_dct)
+            labels_pred_loss_dct = oc_svm_loss_dct.predict(attributes_eval_loss_dct) # Devuelve 1 para inliers y -1 para outliers
+            anomaly_scores_loss_dct = oc_svm_loss_dct.decision_function(attributes_eval_loss_dct) # Puntuacion negativa para mas anomalo
+            anomaly_scores_train_loss_dct = oc_svm_loss_dct.decision_function(attributes_train_loss_dct)
+            
+            oc_svm_kld.fit(attributes_train_kld)
+            labels_pred_kld = oc_svm_kld.predict(attributes_eval_kld) # Devuelve 1 para inliers y -1 para outliers
+            anomaly_scores_kld = oc_svm_kld.decision_function(attributes_eval_kld) # Puntuacion negativa para mas anomalo
+            anomaly_scores_train_kld = oc_svm_kld.decision_function(attributes_train_kld)
+
+            oc_svm_kld_dct.fit(attributes_train_kld_dct)
+            labels_pred_kld_dct = oc_svm_kld_dct.predict(attributes_eval_kld_dct) # Devuelve 1 para inliers y -1 para outliers
+            anomaly_scores_kld_dct = oc_svm_kld_dct.decision_function(attributes_eval_kld_dct) # Puntuacion negativa para mas anomalo
+            anomaly_scores_train_kld_dct = oc_svm_kld_dct.decision_function(attributes_train_kld_dct)
+
+            # resustitucion
             as_train_mu = -anomaly_scores_train_mu
             as_train_logvar = -anomaly_scores_train_logvar
             as_train_mu_mah = -anomaly_scores_train_mu_mah
-        else:
+            as_train_loss = -anomaly_scores_train_loss
+            as_train_kld = -anomaly_scores_train_kld
+
+            as_train_mu_dct = -anomaly_scores_train_mu_dct
+            as_train_logvar_dct = -anomaly_scores_train_logvar_dct
+            as_train_mu_mah_dct = -anomaly_scores_train_mu_mah_dct
+            as_train_loss_dct = -anomaly_scores_train_loss_dct
+            as_train_kld_dct = -anomaly_scores_train_kld_dct
+        else: # train(resustitucion)
             # labels_pred = oc_svm_mu.fit_predict(attributes_train)
             # anomaly_scores = oc_svm_mu.decision_function(attributes_train) # Puntuacion negativa para mas anomalo
             labels_pred_mu = oc_svm_mu.fit_predict(attributes_train_mu)
             anomaly_scores_mu = oc_svm_mu.decision_function(attributes_train_mu) # Puntuacion negativa para mas anomalo
+
+            labels_pred_mu_dct = oc_svm_mu_dct.fit_predict(attributes_train_mu_dct)
+            anomaly_scores_mu_dct = oc_svm_mu_dct.decision_function(attributes_train_mu_dct) # Puntuacion negativa para mas anomalo
             
             labels_pred_logvar = oc_svm_logvar.fit_predict(attributes_train_logvar)
             anomaly_scores_logvar = oc_svm_logvar.decision_function(attributes_train_logvar) # Puntuacion negativa para mas anomalo
      
+            labels_pred_logvar_dct = oc_svm_logvar_dct.fit_predict(attributes_train_logvar_dct)
+            anomaly_scores_logvar_dct = oc_svm_logvar_dct.decision_function(attributes_train_logvar_dct) # Puntuacion negativa para mas anomalo
+
             labels_pred_mu_mah = oc_svm_mu_mah.fit_predict(attributes_train_mu_mah)
             anomaly_scores_mu_mah = oc_svm_mu_mah.decision_function(attributes_train_mu_mah) # Puntuacion negativa para mas anomalo
+            
+            labels_pred_mu_mah_dct = oc_svm_mu_mah_dct.fit_predict(attributes_train_mu_mah_dct)
+            anomaly_scores_mu_mah_dct = oc_svm_mu_mah_dct.decision_function(attributes_train_mu_mah_dct) # Puntuacion negativa para mas anomalo
+
+            labels_pred_loss = oc_svm_loss.fit_predict(attributes_train_loss)
+            anomaly_scores_loss = oc_svm_loss.decision_function(attributes_train_loss) # Puntuacion negativa para mas anomalo
+    
+            labels_pred_loss_dct = oc_svm_loss_dct.fit_predict(attributes_train_loss_dct)
+            anomaly_scores_loss_dct = oc_svm_loss_dct.decision_function(attributes_train_loss_dct) # Puntuacion negativa para mas anomalo
+
+            labels_pred_kld = oc_svm_kld.fit_predict(attributes_train_kld)
+            anomaly_scores_kld = oc_svm_kld.decision_function(attributes_train_kld) # Puntuacion negativa para mas anomalo
+
+            labels_pred_kld_dct = oc_svm_kld_dct.fit_predict(attributes_train_kld_dct)
+            anomaly_scores_kld_dct = oc_svm_kld_dct.decision_function(attributes_train_kld_dct) # Puntuacion negativa para mas anomalo
+
+        oc_svm_path = os.path.join(params.model_dir,machine_type)
+        joblib.dump(oc_svm_mu,os.path.join(oc_svm_path,f'oc_svm_mu_{machine_type}.joblib'))
+        joblib.dump(oc_svm_mu_dct,os.path.join(oc_svm_path,f'oc_svm_mu_dct_{machine_type}.joblib'))
+        joblib.dump(oc_svm_logvar,os.path.join(oc_svm_path,f'oc_svm_logvar_{machine_type}.joblib'))
+        joblib.dump(oc_svm_logvar_dct,os.path.join(oc_svm_path,f'oc_svm_logvar_dct_{machine_type}.joblib'))
+        joblib.dump(oc_svm_mu_mah,os.path.join(oc_svm_path,f'oc_svm_mu_mah_{machine_type}.joblib'))
+        joblib.dump(oc_svm_mu_mah_dct,os.path.join(oc_svm_path,f'oc_svm_mu_mah_dct_{machine_type}.joblib'))
+        joblib.dump(oc_svm_loss,os.path.join(oc_svm_path,f'oc_svm_loss_{machine_type}.joblib'))
+        joblib.dump(oc_svm_loss_dct,os.path.join(oc_svm_path,f'oc_svm_loss_dct_{machine_type}.joblib'))
+        joblib.dump(oc_svm_kld,os.path.join(oc_svm_path,f'oc_svm_kld_{machine_type}.joblib'))
+        joblib.dump(oc_svm_kld_dct,os.path.join(oc_svm_path,f'oc_svm_kld_dct_{machine_type}.joblib'))
      
         labels_pred_ocsvm_mu = np.where(labels_pred_mu == -1, 1, 0)
         labels_pred_ocsvm_logavr = np.where(labels_pred_logvar == -1, 1, 0)
         labels_pred_ocsvm_mu_mah = np.where(labels_pred_mu_mah == -1, 1, 0)
+        labels_pred_ocsvm_loss = np.where(labels_pred_loss == -1, 1, 0)
+        labels_pred_ocsvm_kld = np.where(labels_pred_kld == -1, 1, 0)
+
+        labels_pred_ocsvm_mu_dct = np.where(labels_pred_mu_dct == -1, 1, 0)
+        labels_pred_ocsvm_logavr_dct = np.where(labels_pred_logvar_dct == -1, 1, 0)
+        labels_pred_ocsvm_mu_mah_dct = np.where(labels_pred_mu_mah_dct == -1, 1, 0)
+        labels_pred_ocsvm_loss_dct = np.where(labels_pred_loss_dct == -1, 1, 0)
+        labels_pred_ocsvm_kld_dct = np.where(labels_pred_kld_dct == -1, 1, 0)
 
         # Get anomaly scores (distance to the decision boundary for 1csvm)
         as_mu = -anomaly_scores_mu
         as_logvar = -anomaly_scores_logvar
         as_mu_mah = -anomaly_scores_mu_mah # obtenido del clasificador
+        as_loss = -anomaly_scores_loss
+        as_kld = -anomaly_scores_kld
+        as_mu_dct = -anomaly_scores_mu_dct
+        as_logvar_dct = -anomaly_scores_logvar_dct
+        as_mu_mah_dct = -anomaly_scores_mu_mah_dct # obtenido del clasificador
+        as_loss_dct = -anomaly_scores_loss_dct
+        as_kld_dct = -anomaly_scores_kld_dct
 
-        # anomaly_scores = np.max(anomaly_scores.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file), axis=1) # maximo as de las ventanas de una audio
+        # JOBLIB DUMP MODEL
         
         if dir_name == 'test':
             as_data = np.mean((data_eval-data_train.mean(axis=0))**2, axis=(1,2,3)) # error medio entre espectrograma y espectrograma avg de train de cada ventana
@@ -287,9 +458,15 @@ if __name__ == "__main__":
             
             as_data = np.mean(as_data.reshape(N_windows_tot_eval//N_windows_per_file,-1),axis=1) # media entre todas las ventanas de cada audio
             as_data_var = np.var(as_data_var.reshape(N_windows_tot_eval//N_windows_per_file,-1),axis=1)
-            as_data_ptp = np.mean(as_data_ptp.reshape(N_windows_tot_eval//N_windows_per_file,-1),axis=1)
+            as_data_ptp = np.var(as_data_ptp.reshape(N_windows_tot_eval//N_windows_per_file,-1),axis=1)
                     
-            as_avg_mu_mah = np.mean(attributes_eval_mu_mah,axis=1) # media de las distancias de mah
+            as_avg_mu_mah = np.mean(attributes_eval_mu_mah,axis=1) # media de las distancias de mah seleccionadas (con partition)
+            as_max_mu_mah = np.max(attributes_eval_mu_mah,axis=1) # max de las distancias de mah seleccionadas (con partition)
+            as_min_mu_mah = np.min(att_eval_mu_mah_todos,axis=1) # max de las distancias de mah seleccionadas (con partition)
+            as_var_mu_mah = np.var(att_eval_mu_mah_todos,axis=1)
+
+            as_mu_mah_mah = attributes_eval_mu_mah_mah
+            as_kld_mah = attributes_eval_kld_mah
         else:
             as_data = np.mean((data_train-data_train.mean(axis=0))**2, axis=(1,2,3)) # error medio entre espectrograma y espectrograma avg de train de cada ventana
             as_data_var = np.var((data_train-data_train.mean(axis=0))**2, axis=(1,2,3)) # varianza de error espectrograma - espectrograma medio de train
@@ -300,6 +477,12 @@ if __name__ == "__main__":
             as_data_ptp = np.mean(as_data_ptp.reshape(N_windows_tot_train//N_windows_per_file,-1),axis=1)
 
             as_avg_mu_mah = np.mean(attributes_train_mu_mah,axis=1)
+            as_max_mu_mah = np.max(attributes_train_mu_mah,axis=1)
+            as_min_mu_mah = np.min(att_train_mu_mah_todos,axis=1)
+            as_var_mu_mah = np.var(att_train_mu_mah_todos,axis=1)
+
+            as_mu_mah_mah = attributes_train_mu_mah_mah
+            as_kld_mah = attributes_train_kld_mah
 
         # anomaly_scores = np.mean(anomaly_scores.reshape(N_windows_tot_eval//N_windows_per_file,N_windows_per_file,-1),axis=1)
         # anomaly_scores = loss_eval[:,1]
@@ -313,13 +496,21 @@ if __name__ == "__main__":
         # varlf = np.var(attributes_eval,axis=1)
         # anomaly_scores = vartot-varlf
         # print(anomaly_scores.shape)
-        anomaly_scores = np.column_stack([as_data,-as_data_var,as_data_ptp,as_mu,as_logvar,as_mu_mah,as_avg_mu_mah])
+        anomaly_scores = np.column_stack([as_data,as_data_var,-as_data_var,as_data_ptp,-as_data_ptp,
+                                          as_logvar,-as_logvar,as_logvar_dct,-as_logvar_dct,
+                                          as_mu,as_mu_dct,-as_mu_dct,as_mu_mah_dct,-as_mu_mah_dct,as_mu_mah,as_avg_mu_mah,as_mu_mah_mah,-as_mu_mah_mah,as_max_mu_mah,as_min_mu_mah,as_var_mu_mah,-as_var_mu_mah,
+                                          as_loss,as_loss_dct,-as_loss_dct,as_kld,-as_kld,as_kld_dct,-as_kld_dct,as_kld_mah,-as_kld_mah])
+        # anomaly_scores = np.column_stack([as_mu_mah_dct,as_mu_mah_mah,as_logvar])
+        # anomaly_scores = np.column_stack([as_mu_mah_mah])
+        # anomaly_scores = np.column_stack([as_mu,as_mu_dct,-as_mu_dct,as_mu_mah_dct,-as_mu_mah_dct,as_mu_mah,as_avg_mu_mah,as_mu_mah_mah,-as_mu_mah_mah,as_max_mu_mah,as_min_mu_mah,as_var_mu_mah,-as_var_mu_mah])
+    
         # anomaly_score = anomaly_scores[:,-3]
         
-        threshold_type = 'test' # selecciona umbrales calculados con train dataset o con test dataset con cierto percentil | ej 'train95'
+        # threshold_type = 'test' # selecciona umbrales calculados con train dataset o con test dataset con cierto percentil | ej 'train95'
+        threshold_type = dir_name # selecciona umbrales calculados con train dataset o con test dataset con cierto percentil | ej 'train95'
         thresholds_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, 'thresholds', f'thresholds_{threshold_type}_1csvm_{machine_type}.csv')
-        if os.path.exists(thresholds_path):
-        # if False: # para forzar reescribir tresholds
+        # if os.path.exists(thresholds_path):
+        if False: # para forzar reescribir tresholds
             thresholds = np.loadtxt(thresholds_path,delimiter=',')
             print(f'loading {thresholds_path}')
         else:
@@ -335,6 +526,8 @@ if __name__ == "__main__":
         f_scores = np.array(f_scores)
         aucs = [roc_auc_score(labels,anomaly_scores[:,i]) for i in range(labels_pred.shape[1])]
         aucs = np.array(aucs)
+        aucs_pr = [average_precision_score(labels,anomaly_scores[:,i]) for i in range(labels_pred.shape[1])]
+        aucs_pr = np.array(aucs_pr)
 
         # Get predictions
         results_dir = os.path.join(params.results_dir, 'val' if mode else 'test') if dir_name == 'test' else params.model_dir
@@ -343,7 +536,11 @@ if __name__ == "__main__":
         np.savetxt(labels_pred_path,
                     labels_pred,
                     delimiter=",",
-                    header="as_data,-as_data_var,as_data_ptp,as_mu,as_logvar,as_mu_mah,as_avg_mu_mah",
+                    header="as_data,as_data_var,-as_data_var,as_data_ptp,-as_data_ptp," \
+                           "as_logvar,-as_logvar,as_logvar_dct,-as_logvar_dct," \
+                           "as_mu,as_mu_dct,-as_mu_dct,as_mu_mah_dct,-as_mu_mah_dct,as_mu_mah,as_avg_mu_mah,as_mu_mah_mah,-as_mu_mah_mah,as_max_mu_mah,as_min_mu_mah,as_var_mu_mah,-as_var_mu_mah," \
+                           "as_loss,as_loss_dct,-as_loss_dct,as_kld,-as_kld,as_kld_dct,-as_kld_dct,as_kld_mah,-as_kld_mah",
+                    # header="as_logvar,-as_logvar_dct,as_logvar_dct,as_mu,-as_mu_dct,as_mu_dct,as_mu_mah,as_mu_mah_mah,as_mu_mah_dct,as_avg_mu_mah,as_max_mu_mah,as_min_mu_mah,-as_var_mu_mah,as_var_mu_mah,as_loss,-as_loss_dct,as_loss_dct,as_kld,-as_kld_dct,as_kld_dct,-as_kld_mah,as_kld_mah",
                     fmt='%d')
         
         print(f'Anomaly score shape antes de votacion: {anomaly_scores.shape}')
@@ -355,6 +552,7 @@ if __name__ == "__main__":
         else:
             threshold = np.percentile(anomaly_score_vote, 50)
         auc = roc_auc_score(labels, anomaly_score_vote) # con np.arrays si no funciona
+        auc_pr = average_precision_score(labels, anomaly_score_vote)
         labels_pred_vote = (anomaly_score_vote > threshold).astype(int)
         f_score = fbeta_score(labels, labels_pred_vote, beta=1) # beta=2 le da mas importancia a recall que precision
         accuracy = accuracy_score(labels,labels_pred_vote) # (TP+TN)/(TP+TN+FP+FN)
@@ -364,26 +562,27 @@ if __name__ == "__main__":
 
         print(f'f_scores para cada tipo de as usado: {f_scores}')
         print(f'aucs para cada tipo de as usado: {aucs}')
+        print(f'aucs de la curva precission recall para cada tipo de as usado: {aucs_pr}')
         print(f'Percentiles={percentiles}')
-        print(f"OneClassSVM completo para [{machine_type}]\nAUC: {auc:.3f}, f_score: {f_score:.3f}, accuracy: {accuracy:.3f}\n")
+        print(f"OneClassSVM completo para [{machine_type}]\nAUC: {auc:.3f}, AUC_PR: {auc_pr:.3f}, f_score: {f_score:.3f}, accuracy: {accuracy:.3f}\n")
         
         # Generar la matriz
         # labels = np.repeat(labels,N_windows_per_file)
-        as_type = 3 # seleccionar que tipo de as representar (0=as_data,1=-as_data_var,2=as_data_ptp...)
-        # cm = confusion_matrix(labels, labels_pred[:,as_type], labels=[0,1])
-        cm = confusion_matrix(labels, labels_pred_ocsvm_mu, labels=[0,1])
-        # print(len(labels), len(labels_pred))
-        # # Imprimirla terminal
-        # print(cm)
-        # Mostrarla visualmente
-        fig1, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5))
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Normal', 'Anomalous'])
-        disp.plot(ax=ax1, colorbar=False)
-        ax1.set_title(machine_type)
-        ax2.hist(anomaly_scores[labels == 0,as_type], bins=50, alpha=0.5, label='Normal', color='blue')
-        ax2.hist(anomaly_scores[labels == 1,as_type], bins=50, alpha=0.5, label='Anomalía', color='red')
-        ax2.hist(as_train_mu, bins=100, alpha=0.5, label='Normal (train set)', color='b')
-        ax2.axvline(thresholds[as_type], color='black', linestyle='--', label=f'Threshold (Mediana): {thresholds[as_type]:.3f}')
-        ax2.axvline(0, color='red', linestyle='--', label=f'Threshold (offset): 0')
-        ax2.legend()
-    plt.show()
+    #     as_type = 8 # seleccionar que tipo de as representar (0=as_data,1=-as_data_var,2=as_data_ptp...)
+    #     # cm = confusion_matrix(labels, labels_pred[:,as_type], labels=[0,1])
+    #     cm = confusion_matrix(labels, labels_pred_ocsvm_mu, labels=[0,1])
+    #     # print(len(labels), len(labels_pred))
+    #     # # Imprimirla terminal
+    #     # print(cm)
+    #     # Mostrarla visualmente
+    #     fig1, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5))
+    #     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Normal', 'Anomalous'])
+    #     disp.plot(ax=ax1, colorbar=False)
+    #     ax1.set_title(machine_type)
+    #     ax2.hist(anomaly_scores[labels == 0,as_type], bins=50, alpha=0.5, label='Normal', color='blue')
+    #     ax2.hist(anomaly_scores[labels == 1,as_type], bins=50, alpha=0.5, label='Anomalía', color='red')
+    #     ax2.hist(as_train_kld, bins=100, alpha=0.5, label='Normal (train set)', color='b')
+    #     ax2.axvline(thresholds[as_type], color='black', linestyle='--', label=f'Threshold (Mediana): {thresholds[as_type]:.3f}')
+    #     ax2.axvline(0, color='red', linestyle='--', label=f'Threshold (offset): 0')
+    #     ax2.legend()
+    # plt.show()

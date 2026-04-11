@@ -12,6 +12,7 @@ import common as com
 
 params = com.yaml_load('parameters.yaml')
 params = com.yaml_load('parametersCNN.yaml')
+# params = com.yaml_load('parametersCNNClass.yaml')
 
 # EJECUCION
 # python tsne_mu_visualization.py \
@@ -105,8 +106,11 @@ def main(mode, machine_type):
 
 # __________________Descartar algunos valores___________
     # frame_labels=frame_labels[::5] # Para representar uno de cada n valores
-    # mu=mu[::5,:]
+    mu=mu[::5,:]
     # frame_dirs = frame_dirs[::5]
+    frame_sections=frame_sections[::5]
+    frame_labels=frame_labels[::5]
+    frame_machine_types=frame_machine_types[::5]
     # frame_labels=frame_labels[:-20000]
     # mu=mu[:-20000,:]
     # frame_dirs = frame_dirs[:-20000]
@@ -161,6 +165,7 @@ def main(mode, machine_type):
         # hue=frame_labels,    # Color según etiqueta (Normal/Anómalo)
         # style=frame_dirs,    # FORMA según directorio
         # style=frame_labels,    # FORMA según directorio
+        style = frame_sections,
         ax=ax1, 
         palette="viridis",
         s=20,
@@ -211,7 +216,7 @@ def main(mode, machine_type):
 
 
 if __name__ == "__main__":
-    mode, _, machine_type, _ = com.command_line_chk('test')
+    mode, _, machine_type, _, _ = com.command_line_chk('test')
     if machine_type is None:
         com.logger.error(f"Introduzca un tipo de máquina con el parametro -m")
         sys.exit(-1)

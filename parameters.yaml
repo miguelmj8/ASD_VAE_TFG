@@ -2,15 +2,17 @@
 data_dir: "../data/data" # El query selecciona la carpeta de train o test
 features_dir: "../data/Features/melspec_311_128"
 # features_dir: "../data/Features/melspec_311_128"
-model_dir: "./model_output/recon1kl1" # _ significa . decimal
-results_dir: "./results/recon1kl1"
+# model_dir: "./model_output/recon1kl1" # _ significa . decimal
+# results_dir: "./results/recon1kl1"
+model_dir: "./model_output/CLineal/AE/NoClass/lat8h128fr8_7all"
+results_dir: "./results/CLineal/AE/NoClass/lat8h128fr8_7all"
 # Audio
 feature:
   n_mels: 128
   n_fft: 1024
   hop_length: 512 # Numero de muestras que se saltan entre frames del espectrograma
-  frames: 5 # Numero de frames del espectrograma por vector
-  n_hop_frames: 4 # Numero de frames que se saltan entre vectores
+  n_frames: 8 # Numero de frames del espectrograma por vector
+  n_hop_frames: 7 # Numero de frames que se saltan entre vectores
 
 # Aleatoriedad
 seed: 42
@@ -22,8 +24,8 @@ model:
 
 # Entrenamiento
 train:
-  batch_size: 32
-  epochs: 30
+  batch_size: 64
+  epochs: 5
   learning_rate: 0.001
   # validation_split: 0.1
   # Pesos de Loss (Requisito clave)

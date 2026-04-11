@@ -15,7 +15,7 @@ import glob
 import argparse
 import sys
 
-from sklearn.metrics import fbeta_score, accuracy_score, roc_auc_score
+from sklearn.metrics import fbeta_score, accuracy_score, roc_auc_score, average_precision_score
 import itertools
 
 logging.basicConfig(level=logging.INFO,
@@ -45,6 +45,7 @@ def command_line_chk(dir_name):
                         help="Fuente de datos: 'npy' para cargar preprocesados, 'wav' (default) para calcular espectrogramas")
     parser.add_argument('-m', '--machine_type', type=str, choices=['bearing','fan','valve','gearbox','ToyTrain','ToyCar','slider','todos'], help="Machine type only used for tsne visualization")
     parser.add_argument('-r', '--resubstitution', action='store_true', help='test with train data')
+    parser.add_argument('-d', '--da', action='store_true', help='Train with augmented data')
 
     args = parser.parse_args()
     # if args.dev:
@@ -57,7 +58,7 @@ def command_line_chk(dir_name):
     
     dir_name = 'train' if args.resubstitution else dir_name
        
-    return flag, args.input, args.machine_type, dir_name
+    return flag, args.input, args.machine_type, dir_name, args.da
 
 
 # ============ Audio Processing Functions ============
@@ -99,7 +100,7 @@ def spectrogram(audio, n_fft = 2048, hop_length = 2048):
 
 def melspectrogram(audio, sr, n_fft = 2048, hop_length = 2048, n_mels=64):
     M = librosa.feature.melspectrogram(y=audio, sr = sr, n_fft = n_fft, hop_length = hop_length, n_mels=n_mels, center = False)
-    M_db = librosa.power_to_db(M, ref=1e-12)   # or ref=np.max
+    M_db = librosa.power_to_db(M, ref=1e-12) # or ref=np.max
     return M_db
 
 def plot_mag_spectrogram(audio, sr, n_fft = 2048, hop_length = 2048, scale = 'linear', ax = None, \
@@ -523,7 +524,7 @@ def file_list_to_data_CNN(params,
         this parameter will be input into "desc" params at tqdm.
     return : numpy.array( numpy.array( float ) )
         data for training (this function is not used for test.)
-        * data.shape = (number of files, 1, n_mels, n_time_frames)
+        * data.shape = (nfiles*nwindowsperfile, 1, n_mels, n_time_frames)
     """
     if input_type == 'npy' and not flag_npy:
         msg = f"Loading npy files"
@@ -547,24 +548,19 @@ def file_list_to_data_CNN(params,
         else:  # input_type == 'npy'
             logmelspec = np.load(files[idx])
 
-        # print(f'logmelspeclen {len(logmelspec[0,:])}, nframe={n_frames}, nhopframes={n_hop_frames}')
         n_windows = int(np.ceil((len(logmelspec[0,:]) - n_frames + 1)/n_hop_frames)) # numero de ventanas en las que se parte cada logmelspec
-        # if n_windows == 1:
-        #     print('Utilizando logmelspec completo para cada audio') # data[idx, :, :, :] = logmelspec como antes
-        # elif n_windows > 1:
-        #     print(f'Numero de frames en el logmelspec: {len(logmelspec[0,:])} y n_frames seleccionados: {n_frames}')
-        if n_windows<1: # si n_windows < 1 error
+        # print(n_windows)
+        if n_windows < 1: # si n_windows < 1 error
             print(f'Numero de frames en el logmelspec: {len(logmelspec[0,:])} y n_frames seleccionados: {n_frames}')
             sys.exit(-1)
 
         # Add channel dimension: (1, n_mels, n_time_frames)
         logmelspec = np.expand_dims(logmelspec, axis=0)
         if idx == 0:
-            # data = np.zeros((len(files), 1, logmelspec.shape[1], logmelspec.shape[2]), float)
             data = np.zeros(((len(files))*n_windows, 1, logmelspec.shape[1], n_frames)) # para guardar todas las ventanas
-        # data[idx, :, :, :] = logmelspec
         for i in range(n_windows):
              data[idx*n_windows+i, :, :, :] = logmelspec[:,:,i*n_hop_frames:i*n_hop_frames+n_frames]
+
     return data
 
 def add_noise(data, noise_factor=0.05):
@@ -584,7 +580,7 @@ def add_noise(data, noise_factor=0.05):
     data_n = data*(1-noise_factor) + noise_factor * xrms * noise # mantiene potencia original
     return data_n
 
-def std_mt(params,data, mt_counts, machine_types):
+def std_mt(params,data, mt_counts, machine_types, cnn):
     """
     Estandariza los datos en bloques basados en una tupla de conteos.
     Estandariza cada tipo de maquina con su media y varianza
@@ -610,23 +606,30 @@ def std_mt(params,data, mt_counts, machine_types):
         # Extraer el bloque actual
         block = data[start_idx:end_idx]
         
-        # Calcular estadísticos locales (media y std por pixel)
-        m_block = block.mean(axis=0)
-        s_block = block.std(axis=0)
+        if cnn:
+            std_img_path = os.path.join(params.data_dir, machine_types[i], f'std_img_{n_frames}_{n_hop_frames}_{machine_types[i]}.npy')
+            mean_img_path = os.path.join(params.data_dir, machine_types[i], f'mean_img_{n_frames}_{n_hop_frames}_{machine_types[i]}.npy')
+        else:
+            std_img_path = os.path.join(params.data_dir, machine_types[i], f'std_vect_{n_frames}_{n_hop_frames}_{machine_types[i]}.npy')
+            mean_img_path = os.path.join(params.data_dir, machine_types[i], f'mean_vect_{n_frames}_{n_hop_frames}_{machine_types[i]}.npy')
         
-        # Aplicar estandarizacion
-        data_standardized[start_idx:end_idx] = (block - m_block) / (s_block + 1e-8)
-        
-        print(f"Maquina tipo {machine_types[i]} estandarizado: indices {start_idx} a {end_idx} ({n_files} ventanas)")
-       
-        std_img_path = os.path.join(params.data_dir, machine_types[i], f'std_img_{n_frames}_{n_hop_frames}_{machine_types[i]}.npy')
-        mean_img_path = os.path.join(params.data_dir, machine_types[i], f'mean_img_{n_frames}_{n_hop_frames}_{machine_types[i]}.npy')
-        if not os.path.exists(std_img_path):
+        if os.path.exists(std_img_path):
+            m_block = np.load(mean_img_path)
+            s_block = np.load(std_img_path)
+        else:
+            # Calcular estadísticos locales (media y std por pixel)
+            m_block = block.mean(axis=0)
+            s_block = block.std(axis=0)
             os.makedirs(os.path.dirname(std_img_path),exist_ok=True)
             os.makedirs(os.path.dirname(mean_img_path),exist_ok=True)
             np.save(std_img_path, s_block)
             np.save(mean_img_path, m_block)
             print(f'Saved mean and std for {machine_types[i]} at {std_img_path}')
+        
+        # Aplicar estandarizacion
+        data_standardized[start_idx:end_idx] = (block - m_block) / (s_block + 1e-8)
+        
+        print(f"Maquina tipo [{machine_types[i]}] estandarizado: indices {start_idx} a {end_idx} ({n_files} ventanas)")
        
         # Desplazar el puntero
         start_idx = end_idx
@@ -654,7 +657,7 @@ def evaluate_ensembles(y_true, labels_pred_matrix, metric = 'fscore', beta=2, th
     """
     y_true: vector real (n_samples,)
     labels_pred_matrix: matriz de predicciones (n_samples, n_metodos)
-    metric: fscore, auc o accuracy. metrica que se compara con el umbral y se maximiza en las combinaciones
+    metric: fscore, auc, auc_pr o accuracy. metrica que se maximiza en las combinaciones. para comparar con el umbral siempre se usa fbscore
     beta: parametro para fscore | beta=2 le da mas importancia a recall que precision. beta=1 por igual
     threshold: para descartar los as que no lo superan
     """
@@ -662,18 +665,9 @@ def evaluate_ensembles(y_true, labels_pred_matrix, metric = 'fscore', beta=2, th
     
     # 1. Calcular F-beta individual para cada columna
     individual_scores = []
-    for i in range(n_metodos):
-        match metric:
-            case 'fscore':
-                score = fbeta_score(y_true, labels_pred_matrix[:, i], beta=beta)
-            case 'auc':
-                score = roc_auc_score(y_true, labels_pred_matrix[:, i])
-            case 'accuracy':
-                score = accuracy_score(y_true, labels_pred_matrix[:, i])
-            case _:
-                print(f'{metric} no validao. Posibles metric: "fscore", "auc" o "accuracy"')
-                sys.exit()
-        # score = fbeta_score(y_true, labels_pred_matrix[:, i], beta=beta)
+    for i in range(n_metodos): # score que se compara con el umbral
+        score = fbeta_score(y_true, labels_pred_matrix[:, i], beta=beta)
+        # score = accuracy_score(y_true, labels_pred_matrix[:, i])
         individual_scores.append(score)
     
     # 2. Filtrar métodos que superan el umbral
@@ -685,7 +679,7 @@ def evaluate_ensembles(y_true, labels_pred_matrix, metric = 'fscore', beta=2, th
 
     # 3. Generar todas las combinaciones posibles (2^i)
     # itertools.combinations genera subconjuntos de tamaño r
-    for r in range(1, len(valid_indices) + 1):
+    for r in tqdm(range(1, len(valid_indices) + 1)):
         for subset in itertools.combinations(valid_indices, r):
             
             # --- VOTACIÓN MAYORITARIA ---
@@ -705,9 +699,133 @@ def evaluate_ensembles(y_true, labels_pred_matrix, metric = 'fscore', beta=2, th
                     current_score = roc_auc_score(y_true, votes)
                 case 'accuracy':
                     current_score = accuracy_score(y_true, ensemble_pred)
+                case 'auc_pr':
+                    current_score = average_precision_score(y_true, votes)
+                case _:
+                    print(f'{metric} no validao. Posibles metric: "fscore", "auc" o "accuracy"')
+                    sys.exit()
 
             if current_score > best_score:
                 best_score = current_score
                 best_combination = subset
 
     return best_score, best_combination
+
+import torch
+import torch.nn.functional as F
+
+def cross_correlation_loss(x, x_recon, max_df=10, max_dt=3, freq_scale=0.4):
+    """
+    x, x_recon: BxCxFxT
+    max_df: max shift vertical (frecuencia)
+    max_dt: max shift horizontal (tiempo)
+    freq_scale: control tolerancia. >0.5 penaliza desplazamiento frecuencias mas que tiempos
+    """
+    time_scale = 1-freq_scale
+    B, C, F, T = x.shape # batch, channels, freq, time frames
+    # print(x.shape)
+    # best_corr = torch.zeros(B, device=x.device)
+
+    # Normalizamos para correlación
+    x_rms = torch.norm(x.view(B,-1), dim=1, keepdim=True)+1e-8
+    x_norm = x / x_rms.view(B,1,1,1) # normaliza cada logmelspec
+    x_norm_flatten = x_norm.view(B,-1)
+
+    x_recon_rms = torch.norm(x_recon.view(B,-1), dim=1, keepdim=True)+1e-8
+    x_recon_norm = x_recon / x_recon_rms.view(B,1,1,1)
+
+    shifted = torch.zeros_like(x_recon)
+
+    corr_sum = torch.zeros(B, device=x.device)
+    weight_sum = 0.0
+
+    for df in range(-max_df, max_df+1):
+        for dt in range(-max_dt, max_dt+1):
+            # Shift x_recon, rellenando bordes con cero
+            shifted.zero_()
+            # índices válidos
+            f_start = max(0, df)
+            f_end = F + min(0, df)
+            t_start = max(0, dt)
+            t_end = T + min(0, dt)
+            
+            shifted[:, :, f_start:f_end, t_start:t_end] = x_recon_norm[:, :, f_start-df:f_end-df, t_start-dt:t_end-dt]
+            
+            if abs(df) == max_df and abs(dt) == max_dt:
+                if max_df != 0 or max_dt != 0:
+                    continue
+            corr = torch.sum(x_norm_flatten * shifted.view(B,-1), dim=1)
+            if df == 0 and dt == 0:
+                corr0 = corr
+            else:
+                weight = 1 - (abs(df)/max_df*freq_scale + abs(dt)/max_dt*time_scale)
+                corr_sum += corr * weight
+                weight_sum += weight
+            # print(corr)
+           
+    if weight_sum != 0:
+        corr_final = corr0 + (1-corr0) * corr_sum / weight_sum
+    else:
+        corr_final = corr0
+
+    # loss = 1 - corr_final
+    loss = (1 - corr_final)*(2-(3-x_rms[:,0]/x_recon_rms[:,0]-x_recon_rms[:,0]/x_rms[:,0])) # Procura misma energia
+    return torch.mean(loss)
+
+def cross_correlation_loss_test(x, x_recon, max_df=10, max_dt=3, freq_scale=0.4):
+    """
+    x, x_recon: BxCxFxT
+    max_df: max shift vertical (frecuencia)
+    max_dt: max shift horizontal (tiempo)
+    freq_scale: control tolerancia. >0.5 penaliza desplazamiento frecuencias mas que tiempos
+    """
+    time_scale = 1-freq_scale
+    B, C, F, T = x.shape # batch, channels, time frames, freqs mel
+    # best_corr = torch.zeros(B, device=x.device)
+
+    # Normalizamos para correlación
+    x_rms = torch.norm(x.view(B,-1), dim=1, keepdim=True)+1e-8
+    x_norm = x / x_rms.view(B,1,1,1) # normaliza cada logmelspec
+    x_norm_flatten = x_norm.view(B,-1)
+
+    x_recon_rms = torch.norm(x_recon.view(B,-1), dim=1, keepdim=True)+1e-8
+    x_recon_norm = x_recon / x_recon_rms.view(B,1,1,1)
+
+    shifted = torch.zeros_like(x_recon)
+
+    corr_sum = torch.zeros(B, device=x.device)
+    weight_sum = 0.0
+
+    for df in range(-max_df, max_df+1):
+        for dt in range(-max_dt, max_dt+1):
+            # Shift x_recon, rellenando bordes con cero
+            shifted.zero_()
+            # índices válidos
+            f_start = max(0, df)
+            f_end = F + min(0, df)
+            t_start = max(0, dt)
+            t_end = T + min(0, dt)
+            
+            shifted[:, :, f_start:f_end, t_start:t_end] = x_recon_norm[:, :, f_start-df:f_end-df, t_start-dt:t_end-dt]
+            
+            if abs(df) == max_df and abs(dt) == max_dt:
+                if max_df != 0 or max_dt != 0:
+                    continue
+            corr = torch.sum(x_norm_flatten * shifted.view(B,-1), dim=1)
+            if df == 0 and dt == 0:
+                corr0 = corr
+            else:
+                weight = 1 - (abs(df)/max_df*freq_scale + abs(dt)/max_dt*time_scale)
+                corr_sum += corr * weight
+                weight_sum += weight
+            # print(corr)
+           
+    if weight_sum != 0:
+        corr_final = corr0 + (1-corr0) * corr_sum / weight_sum
+    else:
+        corr_final = corr0
+
+    # loss = 1 - corr_final
+    loss = (1 - corr_final)*(2-(3-x_rms[:,0]/x_recon_rms[:,0]-x_recon_rms[:,0]/x_rms[:,0])) # Procura misma energia
+    # print(loss)
+    return loss

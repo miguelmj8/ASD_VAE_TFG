@@ -8,14 +8,14 @@ import common as com
 import model.cnn_vae as cnn_vae
 
 params = com.yaml_load('parametersCNN.yaml')
-vae = False # flag para vae (true) o ae (false)
+vae = True # flag para vae (true) o ae (false)
 
 if __name__ == "__main__":
     # check mode
     # "development": mode == True
     # "evaluation": mode == False
     # input_type: 'wav' or 'npy' (default 'wav')
-    mode, input_type, machine_type, dir_name = com.command_line_chk('train')
+    mode, input_type, machine_type, dir_name, da = com.command_line_chk('train')
     if mode is None:
         sys.exit(-1)
     # mode = True  # for debug
@@ -55,7 +55,10 @@ if __name__ == "__main__":
         if os.path.exists(model_file_path):
             com.logger.info("model exists")
             print(f'Model for {machine_type} already exists at {model_file_path}, skipping training.')
-            continue
+            if machine_type == 'todos':
+                break
+            else:
+                continue
 
         files, _, n_files_per_mt = com.file_list_generator(
             target_dir=target_dir,
@@ -79,7 +82,7 @@ if __name__ == "__main__":
         N_windows_per_file = int(data.shape[0] / len(files))
         n_windows_per_mt = N_windows_per_file*n_files_per_mt
 
-        model = cnn_vae.CNN_VAE(device=device, n_mels=params.feature.n_mels, n_frames=n_frames, z_dim=z_dim,vae=vae).to(device)
+        model = cnn_vae.CNN_VAE(device=device, n_mels=params.feature.n_mels, n_frames=n_frames, z_dim=z_dim, vae=vae).to(device)
         print(model)
         total_params = sum(p.numel() for p in model.parameters())
         print(f'Total number of parameters: {total_params}')
@@ -95,7 +98,7 @@ if __name__ == "__main__":
         # data_standarized = (data - m) / (s + 1e-8)  # Estandariza los datos
         # print(f'Data mean: {m}, std: {s}')
         if machine_type == 'todos': # estandariza cata tipo de maquina con su propia media y var
-            data_standarized = com.std_mt(params,data,n_windows_per_mt,machine_types)
+            data_standarized = com.std_mt(params,data,n_windows_per_mt,machine_types,cnn=True)
         else:
             m, s = data.mean(axis=0), data.std(axis=0) # Media y varianza para cada pixel
             data_standarized = (data - m) / (s + 1e-8)  # Estandariza los datos
@@ -110,8 +113,25 @@ if __name__ == "__main__":
                 np.save(std_img_path, s)
                 np.save(mean_img_path, m)
                 print(f'Saved mean and std for {machine_type} at {std_img_path}')
-            
+       
+        # print(files[0])         
+        # data_standarized[:] = np.tile(data_standarized[:N_windows_per_file], (len(files),1,1,1)) # Para entrenar con una sola muestra y sobreajustar
         dataset = torch.utils.data.TensorDataset(torch.tensor(data_standarized, dtype=torch.float32))
+        
+        if da: # si usamos data augmentation
+            # data = np.concatenate((data, add_noise(data)), axis=0) # duplicamos el dataset añadiendo ruido a la mitad de las muestras
+            da_path = os.path.join(os.path.join(f'{params.da_dir}_{str(n_frames)}_{str(n_hop_frames)}', machine_type))
+            file_list = os.listdir(da_path)
+            num_augmented_files = len(file_list)
+            print(f"[*] Cargando {num_augmented_files} muestras de aumento de datos desde: {da_path}")
+            augmented_data = np.empty((num_augmented_files, 1, params.feature.n_mels, n_frames), dtype=np.float32)
+            for i, f in enumerate(tqdm(file_list, desc='Cargando datos aumentados', unit='file')):
+                augmented_data[i] = np.load(os.path.join(da_path, f))
+            print(f'shape datastandarized {data_standarized.shape}, shape augmented_data {augmented_data.shape}')
+        
+            dataset_augmented = torch.utils.data.TensorDataset(torch.tensor(augmented_data, dtype=torch.float32))
+            dataset = torch.utils.data.ConcatDataset([dataset, dataset_augmented])
+       
         generator = torch.Generator()
         generator.manual_seed(params.seed)
         dataloader = torch.utils.data.DataLoader(dataset,
@@ -143,12 +163,18 @@ if __name__ == "__main__":
                         loss = a_RECONST * reconst_loss + a_KLD * kld # Para VAE
                     else:
                         reconstructed, mu = model(batch_data) # para AE
-                        loss = cnn_vae.AE_loss_function(reconstructed, batch_data) # Para AE
+                        reconst_loss = cnn_vae.AE_loss_function(reconstructed, batch_data) # Para AE
+                        loss = reconst_loss
                     loss.backward()
                     optimizer.step()
 
                     epoch_loss += loss.item()
                     num_batches += 1
+                    if num_batches % 100 == 0:
+                        if vae:
+                            print(f"Batch {num_batches}: reconst={a_RECONST*reconst_loss.item():.4f}, kld={a_KLD*kld.item():.4f}, total={loss.item():.4f}")
+                        else:
+                            print(f"Batch {num_batches}: reconst={reconst_loss.item():.4f}")
                     pbar.update(1)
             # Al final de cada época en el bucle principal:
             lr = optimizer.param_groups[0]['lr']
@@ -163,7 +189,7 @@ if __name__ == "__main__":
 
         # save model
         torch.save(model, model_file_path)
-        print(f'============== END TRAINING for {machine_type} ==============')
+        print(f'============== END TRAINING for {machine_type} ==============\n')
         if target_dir is None:
             break  # when training for "todos", only do one iteration
 

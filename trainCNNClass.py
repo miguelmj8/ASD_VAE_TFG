@@ -17,7 +17,7 @@ if __name__ == "__main__":
     # "development": mode == True
     # "evaluation": mode == False
     # input_type: 'wav' or 'npy' (default 'wav')
-    mode, input_type, machine_type, dir_name = com.command_line_chk('train')
+    mode, input_type, machine_type, dir_name, da = com.command_line_chk('train')
     if mode is None:
         sys.exit(-1)
     # mode = True  # for debug
@@ -66,13 +66,12 @@ if __name__ == "__main__":
             else:
                 continue
 
-        files, _, n_files_per_mt = com.file_list_generator(
-            target_dir=target_dir,
-            section_name="*",
-            dir_name="train",
-            mode=mode,
-            input_type=input_type,
-            params=params)
+        files, _, n_files_per_mt = com.file_list_generator(target_dir=target_dir,
+                                                           section_name="*",
+                                                           dir_name="train",
+                                                           mode=mode,
+                                                           input_type=input_type,
+                                                           params=params)
         archivos = [os.path.basename(f) for f in files]
         sections = np.array([f.split("_")[1] for f in archivos], dtype=int)
         data = com.file_list_to_data_CNN(params,
@@ -87,7 +86,7 @@ if __name__ == "__main__":
                                          machine_type=machine_type,
                                          flag_npy=flag_npy,
                                          dir_name=dir_name)
-        N_windows_per_file = int(data.shape[0] / len(files))
+        N_windows_per_file = int(data.shape[0] / len(files)) # (nframeslogmelspec(311)-nframespwindow+nhopframes)/nhopframes
         n_windows_per_mt = N_windows_per_file*n_files_per_mt # lista con numero de windows de cada machine type
         machine_id = np.repeat(np.arange(len(n_windows_per_mt)),n_windows_per_mt)
         sections_id = np.repeat(sections,N_windows_per_file)
@@ -107,7 +106,7 @@ if __name__ == "__main__":
         # data_standarized = (data - m) / (s + 1e-8)  # Estandariza los datos
         # print(f'Data mean: {m}, std: {s}')
         if machine_type == 'todos': # estandariza cata tipo de maquina con su propia media y var
-            data_standarized = com.std_mt(params,data,n_windows_per_mt,machine_types)
+            data_standarized = com.std_mt(params,data,n_windows_per_mt,machine_types,cnn=True)
         else:
             m, s = data.mean(axis=0), data.std(axis=0) # Media y varianza para cada pixel
             data_standarized = (data - m) / (s + 1e-8)  # Estandariza los datos
@@ -122,6 +121,14 @@ if __name__ == "__main__":
                 np.save(std_img_path, s)
                 np.save(mean_img_path, m)
                 print(f'Saved mean and std for {machine_type} at {std_img_path}')
+
+        if da: # si usamos data augmentation
+            # data = np.concatenate((data, add_noise(data)), axis=0) # duplicamos el dataset añadiendo ruido a la mitad de las muestras
+            da_path = os.path.join(os.path.join(f'{params.da_dir}_{str(n_frames)}_{str(n_hop_frames)}', machine_type))
+            file_list = sorted(os.listdir(da_path))
+            augmented_data = np.array([np.load(os.path.join(da_path, f)) for f in file_list])
+            data_standarized = np.concatenate((data_standarized, augmented_data), axis=0)
+
         # print(data_standarized.shape,machine_id.shape,sections_id.shape)
         dataset = torch.utils.data.TensorDataset(torch.tensor(data_standarized, dtype=torch.float32),
                                                  torch.tensor(machine_id, dtype=torch.long),
@@ -148,14 +155,16 @@ if __name__ == "__main__":
                     optimizer.zero_grad()
                     
                     a_RECONST = params.train.w_recon
-                    a_KLD = params.train.w_kl
+                    a_CLASS = params.train.w_class
 
                     if vae:
-                        reconstructed, z, mu, logvar,class_prob = model(batch_data) # para VAE
+                        reconstructed, z, mu, logvar, class_prob = model(batch_data) # para VAE
+                        # print(class_prob)
                         # Compute loss
                         target_class = com.get_target_class(m_id,s_id,batch_data.size(0),device,n_classes=n_classes,n_sub=n_sub)
                         reconst_loss, kld, class_loss = cnn_vae.VAE_loss_function(reconstructed, batch_data, mu, logvar, class_prob, target_class) # Para VAE
-                        loss = a_RECONST * reconst_loss + a_KLD * kld + 1 * class_loss # Para VAE
+                        a_KLD = params.train.w_kl
+                        loss = a_RECONST * reconst_loss + a_KLD * kld + a_CLASS * class_loss # Para VAE
                     else:
                         reconstructed, mu, class_prob = model(batch_data) # para AE
                         target_class = com.get_target_class(m_id,s_id,batch_data.size(0),device,n_classes=n_classes,n_sub=n_sub)
@@ -166,6 +175,14 @@ if __name__ == "__main__":
 
                     epoch_loss += loss.item()
                     num_batches += 1
+                    
+                    # Print loss components every 100 batches
+                    if num_batches % 100 == 0:
+                        if vae:
+                            print(f"Batch {num_batches}: reconst={a_RECONST*reconst_loss.item():.4f}, kld={a_KLD*kld.item():.4f}, class={a_CLASS*class_loss.item():.4f}, total={loss.item():.4f}")
+                        else:
+                            print(f"Batch {num_batches}: reconst={a_RECONST*reconst_loss.item():.4f}, class={a_CLASS*class_loss.item():.4f}, total={loss.item():.4f}")
+                    
                     pbar.update(1)
             # Al final de cada época en el bucle principal:
             lr = optimizer.param_groups[0]['lr']
@@ -180,7 +197,7 @@ if __name__ == "__main__":
 
         # save model
         torch.save(model, model_file_path)
-        print(f'============== END TRAINING for {machine_type} ==============')
+        print(f'============== END TRAINING for {machine_type} ==============\nModel saved at {model_file_path}')
         if target_dir is None:
             break  # when training for "todos", only do one iteration
 

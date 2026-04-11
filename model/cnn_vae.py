@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import common as com
 
 class CNN_VAE(nn.Module):
 
@@ -44,6 +45,7 @@ class CNN_VAE(nn.Module):
         h = torch.flatten(h,1)
         mu = self.fc_mu(h)
         if self.vae:
+        # if True:
             logvar = self.fc_logvar(h)        # comentar para AE
             return mu, logvar                  # para VAE
         else:
@@ -76,10 +78,13 @@ class CNN_VAE(nn.Module):
     def forward_all(self, x):
         # VAE
         if self.vae:
+        # if True:
             mu, logvar = self.encode(x)
             if self.training:
                 z = self.reparameterize(mu, logvar)
             else:
+                # z = self.reparameterize(mu, logvar)
+                # z = self.reparameterize(mu*0, logvar*0)
                 z = mu
             return self.decode(z), z, mu, logvar
         # AE
@@ -95,15 +100,17 @@ def VAE_loss_function(recon_x, x, mu, logvar):
     """Loss function for VAE which consists of reconstruction and KL divergence losses.
     """
     # Reconstruction loss puedo usar mse, smooth_l1_loss o l1_loss
-    recon_loss = F.mse_loss(recon_x, x, reduction='sum')
+    # recon_loss = F.mse_loss(recon_x, x, reduction='mean')
+    recon_loss = com.cross_correlation_loss(x,recon_x,max_df=1,max_dt=4,freq_scale=0.1)
 
     # KL Divergence loss F.kl_div
-    kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    kld_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
 
     return recon_loss, kld_loss
 
 def AE_loss_function(recon_x, x):
     """Loss function for AE which is just the reconstruction loss.
     """
-    recon_loss = F.mse_loss(recon_x, x, reduction='sum')
+    # recon_loss = F.mse_loss(recon_x, x, reduction='mean')
+    recon_loss = com.cross_correlation_loss(x,recon_x,max_df=10,max_dt=4,freq_scale=0.2)
     return recon_loss

@@ -4,8 +4,8 @@ features_dir: "../data/Features/melspec_311_128"
 # features_dir: "../data/Features/melspec_311_128"
 # model_dir: "./model_output/recon1kl1" # _ significa . decimal
 # results_dir: "./results/recon1kl1"
-model_dir: "./model_output/CLineal/AE/NoClass/lat8h128fr8_7all"
-results_dir: "./results/CLineal/AE/NoClass/lat8h128fr8_7all"
+model_dir: "./model_output/CLineal/AE/NoClass/lat24h128fr8_7all"
+results_dir: "./results/CLineal/AE/NoClass/lat24h128fr8_7all"
 # Audio
 feature:
   n_mels: 128
@@ -19,15 +19,15 @@ seed: 42
 
 # Modelo
 model:
-  latent_dim: 8
+  latent_dim: 24
   hidden_dims: 128
 
 # Entrenamiento
 train:
   batch_size: 64
   epochs: 5
-  learning_rate: 0.001
+  learning_rate: 0.002
   # validation_split: 0.1
   # Pesos de Loss (Requisito clave)
   w_recon: 1.0
-  w_kl: 1.0
+  w_kl: 0.3

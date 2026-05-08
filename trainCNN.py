@@ -114,8 +114,8 @@ if __name__ == "__main__":
                 np.save(mean_img_path, m)
                 print(f'Saved mean and std for {machine_type} at {std_img_path}')
        
-        # print(files[0])         
-        # data_standarized[:] = np.tile(data_standarized[:N_windows_per_file], (len(files),1,1,1)) # Para entrenar con una sola muestra y sobreajustar
+        print(files[0])         
+        data_standarized[:] = np.tile(data_standarized[:N_windows_per_file], (len(files),1,1,1)) # Para entrenar con una sola muestra y sobreajustar
         dataset = torch.utils.data.TensorDataset(torch.tensor(data_standarized, dtype=torch.float32))
         
         if da: # si usamos data augmentation

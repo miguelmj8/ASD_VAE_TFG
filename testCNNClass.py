@@ -8,6 +8,7 @@ import numpy as np
 from sklearn.metrics import roc_auc_score, average_precision_score, fbeta_score, accuracy_score, confusion_matrix, ConfusionMatrixDisplay, RocCurveDisplay
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
+from torchmetrics.functional import structural_similarity_index_measure as ssim
 
 import common as com
 
@@ -47,23 +48,26 @@ if __name__ == "__main__":
     print(f"machine_type: {machine_type}, dirs: {dirs}")
     if machine_type == "todos":
         todos = True
-        mu_values_path_todos = os.path.join(results_dir,
-                                      machine_type,
-                                      f'mu_values_{machine_type}.npy') # Almacena los valores de z por frame
-        kld_path_todos = os.path.join(results_dir, machine_type, f'kld_{machine_type}.csv') # Almacena los valores de kld por frame
+        mu_values_path_todos = os.path.join(results_dir,machine_type,f'mu_values_{machine_type}.npy') # Almacena los valores de z por frame
         reconst_loss_path_todos = os.path.join(results_dir, machine_type, f'reconst_loss_{machine_type}.csv') # Almacena los valores de reconst_loss por frame
         anomaly_scores_path_todos = os.path.join(results_dir, machine_type, f'anomaly_scores_val_{machine_type}.csv') # Almacena los valores de puntuacion de anomalia por audio
         metrics_path_todos = os.path.join(results_dir, machine_type, f'metrics_val_{machine_type}.csv') # AUC, f2score... por tipo de maquina (y por seccion)
 
         all_mu_todos = []
-        all_kld_todos = []
         all_reconst_loss_todos = []
         anomaly_scores_list_todos = []
 
         os.makedirs(os.path.dirname(mu_values_path_todos), exist_ok=True)  # crea carpetas intermedias
-        os.makedirs(os.path.dirname(kld_path_todos), exist_ok=True)  # crea carpetas intermedias
         os.makedirs(os.path.dirname(reconst_loss_path_todos), exist_ok=True)  # crea carpetas intermedias
         os.makedirs(os.path.dirname(anomaly_scores_path_todos), exist_ok=True)
+
+        if vae:
+            logvar_path_todos = os.path.join(results_dir,machine_type,f'logvar_values_{machine_type}.npy') # Almacena los valores de z por frame
+            kld_path_todos = os.path.join(results_dir, machine_type, f'kld_{machine_type}.csv') # Almacena los valores de kld por frame
+            all_logvar_todos = []
+            all_kld_todos = []
+            os.makedirs(os.path.dirname(logvar_path_todos), exist_ok=True)  # crea carpetas intermedias
+            os.makedirs(os.path.dirname(kld_path_todos), exist_ok=True)  # crea carpetas intermedias
 
         with open(metrics_path_todos, "w") as f:
             f.write("AUC,F2,threshold\n")
@@ -180,7 +184,7 @@ if __name__ == "__main__":
         ima_err_ref_path = os.path.join(f'../data/ima_err',machine_type,'train',f'ima_err_ref_{machine_type}.npy')
         all_mu,all_kld,all_logvar = [],[],[]
         all_reconst_loss,all_class_loss = [], []
-        all_cc_loss = []
+        all_cc_loss,all_ssim_loss = [],[]
         all_variance = [] # Varianza del error de reconstruccion de cada audio
         all_curtosis = []
         all_max = []
@@ -213,8 +217,9 @@ if __name__ == "__main__":
                 curtosis = (se - reconst_loss.unsqueeze(1)).pow(4).mean(dim=1)/variance**2 # shape: [batch_size]
                 max = se.topk(k=5, dim=1).values.mean(dim=1)
 
-                cc_loss = com.cross_correlation_loss_test(x,reconstructed,max_df=1,max_dt=2)
-                # print(cc_loss)
+                cc_loss = com.cross_correlation_loss_test(x,reconstructed,max_df=4,max_dt=2,freq_scale=0.5)
+                ssim_loss = 1-ssim(reconstructed,x,data_range=6.0,reduction=None)
+
                 target_class = com.get_target_class(m_id, s_id,x.size(0),device,n_classes=n_classes,n_sub=n_sub)
                 class_loss = F.binary_cross_entropy(class_prob, target_class, reduction='none')
                 class_loss = class_loss.view(x.size(0), -1).sum(dim=1)
@@ -223,6 +228,7 @@ if __name__ == "__main__":
 
                 all_reconst_loss.append(reconst_loss.cpu())
                 all_cc_loss.append(cc_loss.cpu())
+                all_ssim_loss.append(ssim_loss.cpu())
                 all_class_loss.append(class_loss.cpu())
                 all_variance.append(variance.cpu())
                 all_curtosis.append(curtosis.cpu())
@@ -242,6 +248,7 @@ if __name__ == "__main__":
                 all_kld = torch.cat(all_kld, dim=0).numpy() # para VAE | comentar para AE
             all_reconst_loss = torch.cat(all_reconst_loss, dim=0).numpy()
             all_cc_loss = torch.cat(all_cc_loss, dim=0).numpy()
+            all_ssim_loss = torch.cat(all_ssim_loss,dim=0).numpy()
             all_class_loss = torch.cat(all_class_loss, dim=0).numpy()
             all_variance = torch.cat(all_variance, dim=0).numpy()
             all_curtosis = torch.cat(all_curtosis, dim=0).numpy()
@@ -250,43 +257,47 @@ if __name__ == "__main__":
             all_ima_err_var = torch.cat(all_ima_err_var, dim=0).numpy()
             all_ima_err_ref = torch.cat(all_ima_err_ref, dim=0).numpy()
             ima_err_ref = np.mean(all_ima_err_ref, axis=0)
-            if mode: # Modo development guardo tambien losses
-                if vae:
-                    os.makedirs(os.path.dirname(kld_path), exist_ok=True)  # crea carpetas intermedias para VAE | comentar para AE
-                    np.savetxt(kld_path, all_kld, delimiter=",") # comentar para AE
-                os.makedirs(os.path.dirname(reconst_loss_path), exist_ok=True)  # crea carpetas intermedias
-                np.savetxt(
-                    reconst_loss_path,
-                    np.column_stack([all_reconst_loss, all_variance, all_class_loss]),
-                    delimiter=",",
-                    header="reconst_loss,variance,class_loss")
-                os.makedirs(os.path.dirname(ima_err_path),exist_ok=True)
-                np.save(ima_err_path,all_ima_err)
-                np.save(ima_err_var_path, all_ima_err_var)
-                if dir_name == 'train':
-                    np.save(ima_err_ref_path, ima_err_ref)
-                else:
-                    ima_err_ref = np.load(ima_err_ref_path)
+            # if mode: # Modo development guardo tambien losses
+            if vae:
+                os.makedirs(os.path.dirname(kld_path), exist_ok=True)  # crea carpetas intermedias para VAE | comentar para AE
+                np.savetxt(kld_path, all_kld, delimiter=",") # comentar para AE
+            os.makedirs(os.path.dirname(reconst_loss_path), exist_ok=True)  # crea carpetas intermedias
+            np.savetxt(reconst_loss_path,
+                       np.column_stack([all_reconst_loss, all_variance, all_class_loss]),
+                       delimiter=",",
+                       header="reconst_loss,variance,class_loss")
+            os.makedirs(os.path.dirname(ima_err_path),exist_ok=True)
+            np.save(ima_err_path,all_ima_err)
+            np.save(ima_err_var_path, all_ima_err_var)
+            if dir_name == 'train':
+                np.save(ima_err_ref_path, ima_err_ref)
+            else:
+                ima_err_ref = np.load(ima_err_ref_path)
 
             # idxs = 0 # start idx
             for i,label in enumerate(labels):
                 idxs = i*N_windows_per_file
                 idxe = idxs + N_windows_per_file # end idx
 
-                as_loss = np.mean(all_reconst_loss[idxs:idxe])
-                as_loss_var = np.var(all_reconst_loss[idxs:idxe])
-                as_loss_max = np.max(all_reconst_loss[idxs:idxe])
+                as_mse = np.mean(all_reconst_loss[idxs:idxe])
+                as_mse_var = np.var(all_reconst_loss[idxs:idxe])
+                as_mse_max = np.max(all_reconst_loss[idxs:idxe])
                 as_cc_loss = np.mean(all_cc_loss[idxs:idxe])
                 as_cc_loss_var = np.var(all_cc_loss[idxs:idxe])
                 as_cc_loss_max = np.max(all_cc_loss[idxs:idxe])
-                as_var = np.var(all_variance[idxs:idxe])
+                as_ssim_loss = np.mean(all_ssim_loss[idxs:idxe])
+                as_ssim_loss_var = np.var(all_ssim_loss[idxs:idxe])
+                as_ssim_loss_max = np.max(all_ssim_loss[idxs:idxe])
+                as_var = np.mean(all_variance[idxs:idxe])
+                as_var_var = np.var(all_variance[idxs:idxe])
                 as_ptp = np.ptp(all_ima_err_ref[idxs:idxe])
                 # as_curt = np.mean(all_curtosis[idxs:idxe])
-                as_kld = np.mean(all_kld[idxs:idxe])
-                as_kld_var = np.var(all_kld[idxs:idxe])
-                as_kld_max = np.max(all_kld[idxs:idxe])
-                as_kld_min = np.min(all_kld[idxs:idxe])
-                as_kld_ptp = np.ptp(all_kld[idxs:idxe])
+                if vae:
+                    as_kld = np.mean(all_kld[idxs:idxe])
+                    as_kld_var = np.var(all_kld[idxs:idxe])
+                    as_kld_max = np.max(all_kld[idxs:idxe])
+                    as_kld_min = np.min(all_kld[idxs:idxe])
+                    as_kld_ptp = np.ptp(all_kld[idxs:idxe])
                 as_class = np.mean(all_class_loss[idxs:idxe])
                 as_class_var = np.var(all_class_loss[idxs:idxe])
                 as_class_max = np.max(all_class_loss[idxs:idxe])
@@ -298,12 +309,12 @@ if __name__ == "__main__":
 
                 match sections[i]:
                     case 0:
-                        as_loss_sec1.append(as_loss) # appendear enn umpys la as si este label es de un ausio de sec 1...
-                        # anomaly_scores_list.append(as_loss)
+                        as_loss_sec1.append(as_mse) # appendear en numpys la as si este label es de un audio de sec 1...
+                        # anomaly_scores_list.append(as_mse)
                     case 1:
-                        as_loss_sec2.append(as_loss)
+                        as_loss_sec2.append(as_mse)
                     case 2:
-                        as_loss_sec3.append(as_loss)
+                        as_loss_sec3.append(as_mse)
 
                 # anomaly_score = np.ptp(all_ima_err_ref[idxs:idxe])
                 # avg_top_score = np.mean(np.partition(all_ima_err_ref[idxs:idxe], -2, axis=None)[-2:]) # media de los pixeles con mayor error
@@ -311,15 +322,16 @@ if __name__ == "__main__":
                 # anomaly_score = avg_top_score
                 # anomaly_score = avg_top_score - avg_less_score
                 # anomaly_scores_list.append(anomaly_score)
-                anomaly_scores_list.append([as_loss,as_loss_var,-as_loss_var,as_loss_max,-as_loss_max,as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_var,-as_var,as_ptp,-as_ptp,
-                                            as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp,
-                                            as_class,as_class_var,-as_class_var,as_class_max,as_class_min,as_class_ptp])
-                # anomaly_scores_list.append([as_loss_var,as_loss_max,as_var,as_ptp])
+                anomaly_scores_list.append([as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp,as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] +
+                                          ([as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp] if vae else []) +
+                                           [as_class,as_class_var,-as_class_var,as_class_max,as_class_min,as_class_ptp])
+                # anomaly_scores_list.append([as_loss_var,as_loss_max,as_var,as_ptp,as_class,as_kld_var])
 
                 # anomaly_scores_list.append(as_class)
                 # idxs = idxe
 
-            anomaly_scores_array = np.array(anomaly_scores_list)
+            anomaly_scores_array = np.array(anomaly_scores_list) # shape nfiles, n as types
+            # anomaly_scores_array = (anomaly_scores_array-np.mean(anomaly_scores_array,axis=0))/(np.std(anomaly_scores_array,axis=0)+1e-8)
             # audio_label_array = np.array(labels[sections==0])
             audio_label_array = np.array(labels)
             # print(anomaly_scores_array.shape, audio_label_array.shape)
@@ -330,20 +342,19 @@ if __name__ == "__main__":
             #     np.column_stack([anomaly_scores_array, audio_label_array.astype(int), nombres]),
             #     delimiter=",",
             #     header="scorel,v,k,label,name",
-            #     comments="",
-            #     fmt = "%s"
-            # )
+            #     fmt = "%s")
 
             # === Métricas ===
-            threshold_type = dir_name # selecciona umbrales calculados con train dataset o con test dataset con cierto percentil | ej 'train95'           
-            thresholds_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, 'thresholds', f'thresholds_{threshold_type}_{machine_type}.csv')
-            # if os.path.exists(thresholds_path):
-            if False: # forzar reescribir thresholds. usar al cambiar anomalyscoreslist
+            # threshold_type = dir_name # selecciona umbrales calculados con train dataset o con test dataset con cierto percentil | ej 'train95'           
+            threshold_type = 'train'
+            thresholds_path = os.path.join(params.results_dir, 'val', machine_type, 'thresholds', f'thresholds_{threshold_type}_{machine_type}.csv')
+            if os.path.exists(thresholds_path):
+            # if False: # forzar reescribir thresholds. usar al cambiar anomalyscoreslist
                 thresholds = np.loadtxt(thresholds_path,delimiter=',')
                 print(f'loading {thresholds_path}')
             else:
                 if threshold_type == 'train':
-                    thresholds = np.percentile(anomaly_scores_array, 90,axis=0) # sacar un threshold para as loss, var, ptp...
+                    thresholds = np.percentile(anomaly_scores_array,70,axis=0) # sacar un threshold para as loss, var, ptp...
                 if threshold_type == 'test':
                     thresholds = np.percentile(anomaly_scores_array, 50,axis=0) # sacar un threshold para as loss, var, ptp...
                 os.makedirs(os.path.dirname(thresholds_path),exist_ok=True)
@@ -356,18 +367,35 @@ if __name__ == "__main__":
             f_scores = np.array(f_scores)
             aucs = [roc_auc_score(audio_label_array,anomaly_scores_array[:,i]) for i in range(labels_pred.shape[1])]
             aucs = np.array(aucs)
+            accuracies = [accuracy_score(audio_label_array,labels_pred[:,i]) for i in range(labels_pred.shape[1])]
+            accuracies = np.array(accuracies)
 
+            as_names = ["as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp","as_cc_loss","as_cc_loss_var","as_cc_loss_max","as_ssim_loss","as_ssim_loss_var","as_ssim_loss_max"] + \
+                        (["as_kld","-as_kld_var","-as_kld_max","as_kld_min","as_kld_ptp","-as_kld_ptp"] if vae else []) + \
+                        ["as_class","as_class_var","-as_class_var","as_class_max","as_class_min","as_class_ptp"]
             labels_pred_path = os.path.join(results_dir, machine_type, 'predictions', f'labels_pred_test_{machine_type}.csv')
             os.makedirs(os.path.dirname(labels_pred_path), exist_ok=True)
             print(labels_pred_path)
             np.savetxt(labels_pred_path,
-                    labels_pred,
-                    delimiter=",",
-                    header="as_loss,as_loss_var,-as_loss_var,as_loss_max,-as_loss_max,as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_var,-as_var,as_ptp,-as_ptp," \
-                           "as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp," \
-                           "as_class,as_class_var,-as_class_var,as_class_max,as_class_min,as_class_ptp",
-                    fmt='%d')
-
+                       labels_pred,
+                       delimiter=",",
+                       header=','.join(as_names),
+                       fmt='%d')
+            as_pred_path = os.path.join(results_dir,machine_type,'predictions',f'as_pred_test_{machine_type}.csv')
+            os.makedirs(os.path.dirname(as_pred_path),exist_ok=True)
+            np.savetxt(as_pred_path,
+                        anomaly_scores_array,
+                        delimiter=",",
+                        header=','.join(as_names),
+                        fmt='%s')
+            if dir_name == 'test':
+                aucs_path = os.path.join(results_dir, machine_type, f'aucs_test_{machine_type}.csv')
+                os.makedirs(os.path.dirname(aucs_path), exist_ok=True)
+                np.savetxt(aucs_path,
+                        aucs.reshape(1,-1),
+                        delimiter=',',
+                        header=','.join(as_names),
+                        fmt='%s')
 
             # print(thresholds,labels,labels_pred)
             labels_pred_path = os.path.join(results_dir, machine_type, f'labels_pred_1csvm_{machine_type}.npy')
@@ -375,7 +403,7 @@ if __name__ == "__main__":
             # anomaly_scores_array = np.mean(anomaly_scores_array,axis=1) # as como media de as con varios as diferentes
             anomaly_scores_array = np.mean(labels_pred,axis=1) # as como media de labels pred con varios as diferentes
             if threshold_type == 'train':
-                threshold = np.percentile(anomaly_scores_array, 90) # sacar un threshold para as loss, var, ptp... y luego un as como media de ypred de cada as
+                threshold = np.percentile(anomaly_scores_array, 70) # sacar un threshold para as loss, var, ptp... y luego un as como media de ypred de cada as
             if threshold_type == 'test':
                 threshold = np.percentile(anomaly_scores_array, 50) # sacar un threshold para as loss, var, ptp... y luego un as como media de ypred de cada as
             
@@ -389,34 +417,34 @@ if __name__ == "__main__":
             accuracy = accuracy_score(audio_label_array,labels_pred) # (TP+TN)/(TP+TN+FP+FN)
 
             with open(metrics_path, "w") as f:
-                f.write("AUC,F_score,accuracy,threshold\n")
-                f.write(f"{auc_roc},{f_score},{accuracy},{threshold}\n")
+                f.write("AUC_ROC,AUC_PR,F_score,accuracy,threshold\n")
+                f.write(f"{auc_roc},{auc_pr},{f_score},{accuracy},{threshold}\n")
 
             if todos: # Almacena los resultados de todas las maquinas concatenados
                 all_mu_todos.append(all_mu)
-                all_kld_todos.append(all_kld)
                 all_reconst_loss_todos.append(all_reconst_loss)
                 # all_class_loss_todos.append(all_class_loss)
                 anomaly_scores_list_todos.extend(zip(anomaly_scores_array, audio_label_array.astype(int)))
-
+                if vae:
+                    all_logvar_todos.append(all_logvar)
+                    all_kld_todos.append(all_kld)
+                    np.save(logvar_path_todos, np.vstack(all_logvar_todos))
+                    np.savetxt(kld_path_todos, np.hstack(all_kld_todos), delimiter=",")
                 np.save(mu_values_path_todos, np.vstack(all_mu_todos))
-                np.savetxt(kld_path_todos, np.hstack(all_kld_todos), delimiter=",")
                 # anadir columna con variance en el rconstlosspathtodos igual que en el de cada maquina
                 np.savetxt(reconst_loss_path_todos, np.hstack(all_reconst_loss_todos), delimiter=",")
-                np.savetxt(
-                    anomaly_scores_path_todos,
-                    np.array(anomaly_scores_list_todos),
-                    delimiter=",",
-                    header="score,label",
-                    comments=""
-                )
+                np.savetxt(anomaly_scores_path_todos,
+                           np.array(anomaly_scores_list_todos),
+                           delimiter=",",
+                           header="score,label",)
                 with open(metrics_path_todos, "a") as f:
-                    f.write(f"{auc_roc},{f_score},{accuracy},{threshold}\n")
+                    f.write(f"{auc_roc},{auc_pr},{f_score},{accuracy},{threshold}\n")
 
 
             print(f"[OK] Evaluación completada para [{machine_type}]. Datos guardados en {results_dir}")
             print(f'f_scores para cada as: {f_scores}')
             print(f'aucs para cada tipo de as usado: {aucs}')
+            print(f'Accuracy para cada as: {accuracies}')
             print(f'Percentiles={percentiles}')
             print(f"RESULTADO: AUC_ROC = {auc_roc:.3f}, AUC_PR =  {auc_pr:.3f}, F_score = {f_score:.3f}, Accuracy = {accuracy:.3f}, Threshold = {threshold:.3f}\n")
 

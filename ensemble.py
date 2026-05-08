@@ -7,10 +7,11 @@ import matplotlib.pyplot as plt
 
 import common as com
 
-# params = com.yaml_load('parametersCNN.yaml')
+params = com.yaml_load('parameters.yaml')
+params = com.yaml_load('parametersCNN.yaml')
 params = com.yaml_load('parametersCNNClass.yaml')
 
-metric = 'auc_pr' # metrica usada para hacer el ensamble
+metric = 'auc' # metrica usada para hacer el ensamble
 
 if __name__ == "__main__":
 
@@ -25,6 +26,9 @@ if __name__ == "__main__":
     for target_dir in dirs:
         print(target_dir,os.path.split(target_dir))
         machine_type = os.path.split(target_dir)[1] # Metricas para cada maquina
+        # if machine_type == "fan":
+        #     print(machine_type)
+        #     continue
         print(f'==== Start evaluation [{machine_type}] with {torch.cuda.device_count()} GPU(s). ====')
 
         files, labels,_ = com.file_list_generator(target_dir=target_dir,
@@ -33,18 +37,36 @@ if __name__ == "__main__":
                                                 mode=mode,
                                                 input_type=input_type,
                                                 flag_npy=flag_npy)
-        # prueba combinaciones de votaciones entre diferentes predicciones (obetenidas de diferentes formas)
+
+
+        # import aucs de cada as para combinarlas y guardarlas
+        aucs_path = os.path.join(results_dir,machine_type, f'aucs_{machine_type}.csv')
+        aucs_test_path = os.path.join(results_dir, machine_type, f'aucs_test_{machine_type}.csv')
+        aucs_1csvm_path = os.path.join(results_dir, machine_type, f'aucs_1csvm_{machine_type}.csv')
+        aucs_test = np.loadtxt(aucs_test_path,delimiter=',',dtype=str,comments=None)
+        aucs_1csvm = np.loadtxt(aucs_1csvm_path,delimiter=',',dtype=str,comments=None)
+        aucs = np.hstack([aucs_test,aucs_1csvm])
+        os.makedirs(os.path.dirname(aucs_path),exist_ok=True)
+        np.savetxt(aucs_path,aucs,delimiter=',',fmt='%s')
+
+        # import as predichas
+        as_pred_test_path = os.path.join(results_dir,machine_type,'predictions',f'as_pred_test_{machine_type}.csv')
+        as_pred_test = np.loadtxt(as_pred_test_path,delimiter=',')
+        as_pred_1csvm_path = os.path.join(results_dir,machine_type,'predictions',f'as_pred_1csvm_{machine_type}.csv')
+        as_pred_1csvm = np.loadtxt(as_pred_1csvm_path,delimiter=',')
+        as_pred = np.column_stack([as_pred_test,as_pred_1csvm])
 
         # import labels predichas desde test (a partir de error reconstruccion, kld, error clase)
-
         labels_pred_test_path = os.path.join(results_dir, machine_type, 'predictions', f'labels_pred_test_{machine_type}.csv')
-        labels_test = np.loadtxt(labels_pred_test_path, delimiter=',',skiprows=1)
+        labels_test = np.loadtxt(labels_pred_test_path, delimiter=',')
         # import labels predichas desde 1csvm
         labels_pred_1csvm_path = os.path.join(results_dir, machine_type, 'predictions', f'labels_pred_1csvm_{machine_type}.csv')
         labels_1csvm = np.loadtxt(labels_pred_1csvm_path,delimiter=',')
-
         labels_pred = np.column_stack([labels_test,labels_1csvm])
-        score, combination = com.evaluate_ensembles(labels, labels_pred, metric=metric, beta=1, threshold=0.57)
+
+        # Calcula la combinacion
+        score, combination = com.evaluate_ensembles(labels,labels_pred,metric=metric,beta=1,threshold=0.58,type_in='as')
+        # score, combination = com.evaluate_ensembles(labels,as_pred,metric=metric,beta=1,threshold=0.55,type_in='as')
         if combination is None:
             com.logger.warning(f"Ninguna prediccion supera el umbral para [{machine_type}]\n")
             continue
@@ -58,8 +80,10 @@ if __name__ == "__main__":
             header = f.readline().lstrip('#').strip().split(',')
         with open(labels_pred_1csvm_path, 'r') as f:
             header1csvm = f.readline().lstrip('#').strip().split(',')
-            # print(header,header1csvm)
+        
+        # print(header.shape,header1csvm.shape)
         header = np.concatenate([header,header1csvm])
+        # print(header.shape)
         header_selected = header[[combination]]
         print(f'Combinacion seleccionada: {combination}, con {len(combination)} elementos')
         print(header_selected)
@@ -83,5 +107,5 @@ if __name__ == "__main__":
         # ax2.axvline(threshold, color='black', linestyle='--', label=f'Threshold (Mediana): {threshold:.3f}')
         ax2.legend()
 
-    plt.show()
+    # plt.show()
 

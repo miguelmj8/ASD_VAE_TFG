@@ -4,16 +4,16 @@ features_dir: "../data/Features/melspec_311_128"
 da_dir: "../data/Features/da/sampleGaussian" # o sample from data o sample vgm
 # model_dir: "./model_output/CNN/class/k0_4r1c1z/cc1_2f0_4losslat72fr16_14all" # _ significa . decimal
 # results_dir: "./results/CNN/class/k0_4r1c1z/cc1_2f0_4losslat72fr16_14all"
-model_dir: "./model_output/CNN/VAE/class/r1k0_3c1z/mselat48fr8_7all" # _ significa . decimal
-results_dir: "./results/CNN/VAE/class/r1k0_3c1z/mselat48fr8_7all"
+model_dir: "./model_output/CNN/VAE/class/r1k0_3c1znoSection/mselat64fr32_31all" # _ significa . decimal
+results_dir: "./results/CNN/VAE/class/r1k0_3c1znoSection/mselat64fr32_31all"
 # cc5_2f0_25
 # Audio
 feature:
   n_mels: 128
   n_fft: 1024
   hop_length: 512 # Numero de muestras que se saltan entre frames del espectrograma
-  n_frames: 8 # Potencia de 2 para que cnn no de problemas
-  n_hop_frames: 7
+  n_frames: 32 # Potencia de 2 para que cnn no de problemas
+  n_hop_frames: 31
 
 # Aleatoriedad
 seed: 42
@@ -21,12 +21,12 @@ seed: 42
 # Modelo
 model:
   n_classes: 7
-  n_sub: 3
-  latent_dim: 48
+  n_sub: 1
+  latent_dim: 64
 
 # Entrenamiento
 train:
-  batch_size: 128
+  batch_size: 64
   epochs: 8
   # epochs: 30
   learning_rate: 0.002

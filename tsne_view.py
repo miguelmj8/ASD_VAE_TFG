@@ -12,7 +12,7 @@ import common as com
 
 params = com.yaml_load('parameters.yaml')
 params = com.yaml_load('parametersCNN.yaml')
-# params = com.yaml_load('parametersCNNClass.yaml')
+params = com.yaml_load('parametersCNNClass.yaml')
 
 # EJECUCION
 # python tsne_mu_visualization.py \
@@ -23,7 +23,7 @@ params = com.yaml_load('parametersCNN.yaml')
 # EJECUCION (mio)
     #--machine_type valve
 def main(mode, machine_type):
-    dir_names = ['test'] # 'test', 'train'
+    dir_names = ['train'] # 'test', 'train'
     # results_dir = os.path.join(params.results_dir, 'val' if mode else 'test') if dir_name == 'test' else params.model_dir
     files = []
     labels = []
@@ -106,11 +106,11 @@ def main(mode, machine_type):
 
 # __________________Descartar algunos valores___________
     # frame_labels=frame_labels[::5] # Para representar uno de cada n valores
-    mu=mu[::5,:]
+    mu=mu[::10,:]
     # frame_dirs = frame_dirs[::5]
-    frame_sections=frame_sections[::5]
-    frame_labels=frame_labels[::5]
-    frame_machine_types=frame_machine_types[::5]
+    frame_sections=frame_sections[::10]
+    frame_labels=frame_labels[::10]
+    frame_machine_types=frame_machine_types[::10]
     # frame_labels=frame_labels[:-20000]
     # mu=mu[:-20000,:]
     # frame_dirs = frame_dirs[:-20000]

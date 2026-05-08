@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 import torch
 from tqdm import tqdm
 import numpy as np
@@ -143,6 +144,7 @@ if __name__ == "__main__":
         train_loss_path = os.path.join(os.path.dirname(model_file_path), f'train_loss_{machine_type}.txt')
         all_loss = []
 
+        start_time = time.time()
         # De aqui pa abajo NO he COMPROBADO
         for epoch in range(params.train.epochs):
             epoch_loss = 0.0
@@ -191,6 +193,9 @@ if __name__ == "__main__":
             all_loss.append(epoch_loss / num_batches)
             print(f'====> Epoch: {epoch+1}/{params.train.epochs} Average loss: {all_loss[-1]:.3f}')
 
+        end_time = time.time()
+        time = end_time - start_time
+        print(f'Training time for {machine_type}: {time:.2f} seconds')
         all_loss = np.array(all_loss)
         os.makedirs(os.path.dirname(train_loss_path), exist_ok=True)
         np.savetxt(train_loss_path, all_loss, delimiter=',')

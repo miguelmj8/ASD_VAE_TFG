@@ -132,7 +132,7 @@ def plot_mag_melspectrogram(audio, sr, n_fft = 2048, hop_length = 2048, n_mels=6
     img = librosa.display.specshow(M_db, sr = sr, n_fft = n_fft, hop_length = hop_length, \
                                    y_axis = 'mel', x_axis ='time', ax = ax, vmin = vmin, vmax = vmax)
     ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Frequency (Mel)')
+    ax.set_ylabel('Frequency')
     ax.set_title(title)
     cbar = plt.colorbar(img, ax=ax, format="%+2.f dB")
     cbar.set_label('Intensity')
@@ -196,21 +196,16 @@ def check_npy(params, input_type='npy', machine_type=None, dir_name=None):
         if dir_name == 'train':
             if os.path.exists(os.path.join(npy_path, dir_name)):
                 logger.info("npy input is selected in parameters file")
-                print("npy input is selected in parameters file")
                 return 'npy', False
             else:
                 logger.info("npy directory for dev does not exist")
-                print("npy directory for dev does not exist")
                 return 'wav', True
         else:
             if os.path.exists(os.path.join(npy_path, dir_name)):
                 logger.info("npy input is selected in parameters file")
-                print("npy input is selected in parameters file")
-                print(f"============npy path exists: {os.path.join(npy_path, dir_name)}============")
                 return 'npy', False
             else:
                 logger.info("npy directory for eval does not exist")
-                print("npy directory for eval does not exist")
                 return 'wav', True
     else:
         return 'wav', False
@@ -341,7 +336,7 @@ def file_list_generator(target_dir,
                                                                                                         input_type=input_type))
         
         normal_files = sorted(glob.glob(query_normal))
-        print('target_dir:', target_dir)
+        # print('target_dir:', target_dir)
         print(f'query test normales: {query_normal}')
 
         normal_labels = np.zeros(len(normal_files))
@@ -636,7 +631,7 @@ def std_mt(params,data, mt_counts, machine_types, cnn):
         
     return data_standardized
 
-def get_target_class(machine_id, section_id, batch_size,device, n_classes, n_sub, ):
+def get_target_class(machine_id, section_id, batch_size,device, n_classes, n_sub):
     # machine_id: tensor con los índices de máquina (ej: 0 a 6)
     # section_id: tensor con los índices de sección (ej: 0 a 2)
     target = torch.zeros(batch_size, n_classes, n_sub).to(device)
@@ -645,29 +640,37 @@ def get_target_class(machine_id, section_id, batch_size,device, n_classes, n_sub
     for i in range(batch_size):
         m = machine_id[i]
         s = section_id[i]
-        if n_classes == 1:
-            # print(i,m,s,target.shape)
-            target[i, m, :] = 0.0  # No activa la máquina
+        if n_sub == 1:
+            target[i,m,0] = 1
         else:
-            target[i, m, :] = 0.5  # Activa la máquina con 0.5
-        target[i, m, s] = 1.0  # Activa la sección específica
+            if n_classes == 1:
+                # print(i,m,s,target.shape)
+                target[i, m, :] = 0.0  # No activa la máquina
+            else:
+                target[i, m, :] = 0.5  # Activa la máquina con 0.5
+            target[i, m, s] = 1.0  # Activa la sección específica
     return target
 
-def evaluate_ensembles(y_true, labels_pred_matrix, metric = 'fscore', beta=2, threshold=0.55):
+def evaluate_ensembles(y_true, labels_pred_matrix, metric = 'fscore', beta=2, threshold=0.55, type_in='labels'):
     """
     y_true: vector real (n_samples,)
     labels_pred_matrix: matriz de predicciones (n_samples, n_metodos)
     metric: fscore, auc, auc_pr o accuracy. metrica que se maximiza en las combinaciones. para comparar con el umbral siempre se usa fbscore
     beta: parametro para fscore | beta=2 le da mas importancia a recall que precision. beta=1 por igual
     threshold: para descartar los as que no lo superan
+    type_in: si se introducen labels pred de cada audio y para cada tipo de as o anomalyscores
     """
     n_metodos = labels_pred_matrix.shape[1]
     
     # 1. Calcular F-beta individual para cada columna
     individual_scores = []
     for i in range(n_metodos): # score que se compara con el umbral
-        score = fbeta_score(y_true, labels_pred_matrix[:, i], beta=beta)
-        # score = accuracy_score(y_true, labels_pred_matrix[:, i])
+        if type_in == 'labels':
+            score = fbeta_score(y_true, labels_pred_matrix[:, i], beta=beta)
+            # score = accuracy_score(y_true, labels_pred_matrix[:, i])
+        elif type_in == 'as':
+            score = roc_auc_score(y_true, labels_pred_matrix[:, i])
+            # score = average_precision_score(y_true, labels_pred_matrix[:, i])
         individual_scores.append(score)
     
     # 2. Filtrar métodos que superan el umbral

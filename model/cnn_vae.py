@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchmetrics.functional import structural_similarity_index_measure as ssim
+
 import common as com
 
 class CNN_VAE(nn.Module):
@@ -9,7 +11,8 @@ class CNN_VAE(nn.Module):
         super().__init__()
         self.device = device
         self.z_dim = z_dim
-        self.flatten_dim = 64*n_mels//8*n_frames//8
+        self.flatten_dim = 64*((n_mels+7)//8)*((n_frames+7)//8) # hace ceil para evitar problemas ocn impares
+        # self.flatten_dim = 64*n_mels//8*n_frames//8
         self.vae = vae
         # Encoder convolucional
         # Entrada: 1 x 128 x 311
@@ -101,8 +104,8 @@ def VAE_loss_function(recon_x, x, mu, logvar):
     """
     # Reconstruction loss puedo usar mse, smooth_l1_loss o l1_loss
     # recon_loss = F.mse_loss(recon_x, x, reduction='mean')
-    recon_loss = com.cross_correlation_loss(x,recon_x,max_df=1,max_dt=4,freq_scale=0.1)
-
+    recon_loss = com.cross_correlation_loss(x,recon_x,max_df=10,max_dt=4,freq_scale=0.9)
+    # recon_loss = 1-ssim(recon_x, x, data_range=6.0)
     # KL Divergence loss F.kl_div
     kld_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
 
@@ -112,5 +115,7 @@ def AE_loss_function(recon_x, x):
     """Loss function for AE which is just the reconstruction loss.
     """
     # recon_loss = F.mse_loss(recon_x, x, reduction='mean')
-    recon_loss = com.cross_correlation_loss(x,recon_x,max_df=10,max_dt=4,freq_scale=0.2)
+    # recon_loss = com.cross_correlation_loss(x,recon_x,max_df=10,max_dt=4,freq_scale=0.2)
+    recon_loss = 1-ssim(recon_x, x, data_range=6.0)
+
     return recon_loss

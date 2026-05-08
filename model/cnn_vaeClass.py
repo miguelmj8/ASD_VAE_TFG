@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchmetrics.functional import structural_similarity_index_measure as ssim
+
 import common as com
 
 class CNN_VAE(nn.Module):
@@ -97,6 +99,7 @@ class CNN_VAE(nn.Module):
                 # z = self.reparameterize(mu*0, logvar*0)
                 z = mu # Inferencia con mu (sin generacion)
             logits = self.classifier(z)
+            # logits = self.classifier(mu)
         # AE
         else:
             mu = self.encode(x)
@@ -106,7 +109,7 @@ class CNN_VAE(nn.Module):
 
         if self.vae:
             return self.decode(z), z, mu, logvar, class_prob
-        else:
+        else: # AE
             return self.decode(mu), mu, class_prob
 
     # def forward(self, x):
@@ -119,6 +122,7 @@ def VAE_loss_function(recon_x, x, mu, logvar, pred_probs, target_class):
     # Reconstruction loss puedo usar mse, smooth_l1_loss o l1_loss
     recon_loss = F.mse_loss(recon_x, x, reduction='mean')
     # recon_loss = com.cross_correlation_loss(x,recon_x,max_df=5,max_dt=2,freq_scale=0.25)
+    # recon_loss = 1-ssim(recon_x, x, data_range=6.0)
 
     # KL Divergence loss F.kl_div
     kld_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())

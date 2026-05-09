@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     # Selecciona todas las carpetas dentro de data_dir
     input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type)
     print(f"machine_type: {machine_type}, dirs: {dirs}")
     if machine_type == "todos":
         todos = True
@@ -114,7 +114,7 @@ if __name__ == "__main__":
                                                 flag_npy=flag_npy)
         # ___________ Para inferir modelo con audios de otra maquina
         # input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-        # dir_otro = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type='valve', dir_name=dir_name)
+        # dir_otro = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type='valve')
         # files_otro,_,_ = com.file_list_generator(target_dir=dir_otro,
         #                                         section_name="*",
         #                                         dir_name=dir_name,
@@ -288,6 +288,7 @@ if __name__ == "__main__":
                 as_ssim_loss = np.mean(all_ssim_loss[idxs:idxe])
                 as_ssim_loss_var = np.var(all_ssim_loss[idxs:idxe])
                 as_ssim_loss_max = np.max(all_ssim_loss[idxs:idxe])
+                as_msessim = 0.5*as_mse + 0.5*as_ssim_loss
                 as_var = np.mean(all_variance[idxs:idxe])
                 as_var_var = np.var(all_variance[idxs:idxe])
                 as_ptp = np.ptp(all_ima_err_ref[idxs:idxe])
@@ -326,6 +327,7 @@ if __name__ == "__main__":
                                           ([as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp] if vae else []) +
                                            [as_class,as_class_var,-as_class_var,as_class_max,as_class_min,as_class_ptp])
                 # anomaly_scores_list.append([as_loss_var,as_loss_max,as_var,as_ptp,as_class,as_kld_var])
+                # anomaly_scores_list.append([as_msessim])
 
                 # anomaly_scores_list.append(as_class)
                 # idxs = idxe

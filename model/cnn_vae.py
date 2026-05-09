@@ -114,8 +114,9 @@ def VAE_loss_function(recon_x, x, mu, logvar):
 def AE_loss_function(recon_x, x):
     """Loss function for AE which is just the reconstruction loss.
     """
-    # recon_loss = F.mse_loss(recon_x, x, reduction='mean')
+    recon_loss = F.mse_loss(recon_x, x, reduction='mean')
     # recon_loss = com.cross_correlation_loss(x,recon_x,max_df=10,max_dt=4,freq_scale=0.2)
-    recon_loss = 1-ssim(recon_x, x, data_range=6.0)
+    # recon_loss = 1-ssim(recon_x, x, data_range=6.0)
+    recon_loss = 0.5*recon_loss+0.5*(1-ssim(recon_x,x,data_range=6.0))
 
     return recon_loss

@@ -31,15 +31,20 @@ if __name__ == "__main__":
     print(f"Using input type: {input_type}")
     print(f"flag_npy: {flag_npy}")
     # dirs, flag_npy, input_type = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
     
+    if machine_type == 'todos':
+        dirs = com.select_dirs(params=params, mode=mode, input_type='wav', machine_type=machine_type, todos=False)
+        machine_types = [os.path.split(td)[1] for td in dirs]
+        dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, todos=True)
+    else:
+        dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, todos=False)
+        
     # print(f'Flag despues de select dirs {flag_npy}')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dirs = [dirs] if isinstance(dirs, str) else dirs
     for target_dir in dirs:
         if machine_type == "todos":
-            machine_types = [os.path.split(td)[1] for td in dirs]
-            print(machine_types)
+            print(f'Tipos de maquina (todos): {machine_types}')
             target_dir = None
         else:
             machine_type = os.path.split(target_dir)[1] # Para cada maquina
@@ -125,7 +130,7 @@ if __name__ == "__main__":
 
         if da: # si usamos data augmentation
             # data = np.concatenate((data, add_noise(data)), axis=0) # duplicamos el dataset añadiendo ruido a la mitad de las muestras
-            da_path = os.path.join(os.path.join(f'{params.da_dir}_{str(n_frames)}_{str(n_hop_frames)}', machine_type))
+            da_path = os.path.join(os.path.join(f'{params.da_dir}_{str(n_frames)}_{str(n_hop_frames)}', machine_type, 'recon'))
             file_list = sorted(os.listdir(da_path))
             augmented_data = np.array([np.load(os.path.join(da_path, f)) for f in file_list])
             data_standarized = np.concatenate((data_standarized, augmented_data), axis=0)

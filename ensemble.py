@@ -9,7 +9,7 @@ import common as com
 
 params = com.yaml_load('parameters.yaml')
 params = com.yaml_load('parametersCNN.yaml')
-params = com.yaml_load('parametersCNNClass.yaml')
+# params = com.yaml_load('parametersCNNClass.yaml')
 
 metric = 'auc' # metrica usada para hacer el ensamble
 
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     results_dir = os.path.join(params.results_dir, 'val' if mode else 'test') if dir_name == 'test' else params.model_dir
 
     input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type)
 
     dirs = [dirs] if isinstance(dirs, str) else dirs # se asegura de que tiene una lista para iterar
     for target_dir in dirs:

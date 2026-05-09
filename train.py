@@ -25,13 +25,16 @@ if __name__ == "__main__":
 
     # Selecciona todas las carpetas dentro de data_dir
     input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-
+    if machine_type == 'todos':
+        dirs = com.select_dirs(params=params, mode=mode, input_type='wav', machine_type=machine_type, todos=False)
+        machine_types = [os.path.split(td)[1] for td in dirs]
+        dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, todos=True)
+    else:
+        dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, todos=False)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dirs = [dirs] if isinstance(dirs, str) else dirs
     for target_dir in dirs:
         if machine_type == "todos":
-            machine_types = [os.path.split(td)[1] for td in dirs]
             print(machine_types)
             target_dir = None  # Poner a None para que coja todos los datos | target_dir=target_dir para entrenar por separado
         else:

@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import plotly.express as px
-import pandas as pd
+# import plotly.express as px
+# import pandas as pd
 import seaborn as sns
 from sklearn.manifold import TSNE
 
@@ -22,7 +22,7 @@ params = com.yaml_load('parametersCNNClass.yaml')
 
 # EJECUCION (mio)
     #--machine_type valve
-def main(mode, machine_type):
+def main(mode, machine_type, da):
     dir_names = ['train'] # 'test', 'train'
     # results_dir = os.path.join(params.results_dir, 'val' if mode else 'test') if dir_name == 'test' else params.model_dir
     files = []
@@ -41,7 +41,7 @@ def main(mode, machine_type):
             labels_dir=[]
             print(f"com")
             i = 0
-            for target_dir in com.select_dirs(params=params, mode=mode, input_type='wav', dir_name=dir_name):
+            for target_dir in com.select_dirs(params=params, mode=mode, input_type='wav'):
                 files_mt, labels_mt,_ = com.file_list_generator(
                     target_dir=target_dir,
                     section_name="*",
@@ -75,19 +75,31 @@ def main(mode, machine_type):
         # logvar_dir = np.load(os.path.join(results_dir, machine_type, f'logvar_values_{machine_type}.npy')) # Hacer lista for resultsdir in resultsdir para tener train y test
         mu.extend(mu_dir)
         # logvar.extend(logvar_dir)
+    N_vectors_per_file = int(len(mu) / len(labels)) # nºvectors por archivo
+    print(f'Number of elements per file: {N_vectors_per_file}')
+    if da:
+        da_path = os.path.join(f"{params.da_dir}_{params.feature.n_frames}_{params.feature.n_hop_frames}", machine_type, 'z')
+        # .glob("*.npy") es más seguro que os.listdir porque filtra por extensión
+        file_list = os.listdir(da_path)
+        mu_da = [np.load(os.path.join(da_path, f)) for f in file_list]
+        mu.extend(mu_da)
 
-    archivos = [os.path.basename(f) for f in files]
-    sections = np.array([f.split("_")[1] for f in archivos], dtype=int)
-    print(f"Number of files: {len(files)} y labels: {len(labels)}")
-
+    else:
+        archivos = [os.path.basename(f) for f in files]
+        sections = np.array([f.split("_")[1] for f in archivos], dtype=int)
     mu=np.array(mu)
     # logvar=np.array(logvar)
-    N_vectors_per_file = int(mu.shape[0] / len(labels)) # nºvectors por archivo
+    print(f"Number of files originales: {len(files)} y labels: {len(labels)}")
+
     # N_vectors_per_machine_type = int(mu.shape[0]  / len(labels) * 300) # nºvectors por tipo de maquina (3000 archivos por tipo de maquina)
     frame_labels = np.repeat(labels, N_vectors_per_file) # Crea etiquetas por frame repitiendo la etiqueta del archivo
-    frame_sections = np.repeat(sections, N_vectors_per_file) # Seleciona la seccion a la que pertenece cada audio (y lo repite en cada vector)
     frame_dirs = np.repeat(dirs, N_vectors_per_file)
-    frame_machine_types = np.repeat(machine_types,N_vectors_per_file)
+    if da:
+        frame_labels = np.concatenate([frame_labels,np.zeros(len(mu_da))]) # Etiquetas 0 para los datos aumentados (si da=True)
+        frame_dirs = np.concatenate([frame_dirs,np.full(len(mu_da), 2)])
+    else:
+        frame_sections = np.repeat(sections, N_vectors_per_file) # Seleciona la seccion a la que pertenece cada audio (y lo repite en cada vector)
+        frame_machine_types = np.repeat(machine_types,N_vectors_per_file)
     ids = np.repeat(np.arange(len(labels)), N_vectors_per_file) # Id dieferente para cada audio
     # frame_machine_types = np.repeat(np.arange(3), N_vectors_per_machine_type) # Id diferente para cada tipo de maquina
     print(f"labels tot = {len(labels)} len(frame_labels) = {len(frame_labels)}, mu.shape[0] = {mu.shape[0]}")
@@ -106,11 +118,12 @@ def main(mode, machine_type):
 
 # __________________Descartar algunos valores___________
     # frame_labels=frame_labels[::5] # Para representar uno de cada n valores
-    mu=mu[::10,:]
-    # frame_dirs = frame_dirs[::5]
-    frame_sections=frame_sections[::10]
-    frame_labels=frame_labels[::10]
-    frame_machine_types=frame_machine_types[::10]
+    mu=mu[::20,:]
+    frame_dirs = frame_dirs[::20]
+    frame_labels=frame_labels[::20]
+    if not da:
+        frame_sections=frame_sections[::20]
+        frame_machine_types=frame_machine_types[::20]
     # frame_labels=frame_labels[:-20000]
     # mu=mu[:-20000,:]
     # frame_dirs = frame_dirs[:-20000]
@@ -163,9 +176,9 @@ def main(mode, machine_type):
         # hue=frame_labels+2*frame_machine_types,    # Color según etiqueta (Normal/Anómalo)
         hue=frame_machine_types,    # Color según tipo de maquia
         # hue=frame_labels,    # Color según etiqueta (Normal/Anómalo)
-        # style=frame_dirs,    # FORMA según directorio
+        # hue=frame_dirs,    # FORMA según directorio
         # style=frame_labels,    # FORMA según directorio
-        style = frame_sections,
+        # style = frame_sections,
         ax=ax1, 
         palette="viridis",
         s=20,
@@ -216,8 +229,8 @@ def main(mode, machine_type):
 
 
 if __name__ == "__main__":
-    mode, _, machine_type, _, _ = com.command_line_chk('test')
+    mode, _, machine_type, _, da = com.command_line_chk('test')
     if machine_type is None:
         com.logger.error(f"Introduzca un tipo de máquina con el parametro -m")
         sys.exit(-1)
-    main(mode, machine_type)
+    main(mode, machine_type, da)

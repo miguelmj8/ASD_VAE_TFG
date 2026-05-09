@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     # Selecciona todas las carpetas dentro de data/data (o data/features)
     input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type)
 
     # if mode: # Modo development
     #     performance_over_all = []

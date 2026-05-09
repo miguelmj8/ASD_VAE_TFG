@@ -1,31 +1,31 @@
 # Rutas
 data_dir: "../data/data" # El query selecciona la carpeta de train o test
 features_dir: "../data/Features/melspec_311_128"
-da_dir: "../data/Features/da/sampleGaussian" # o sample from data o sample vgm
-model_dir: "./model_output/CNN/AE/NoClass/mselat24fr8_7" # _ significa . decimal
-results_dir: "./results/CNN/AE/NoClass/mselat24fr8_7"
+da_dir: "../data/Features/da/bgmnc20mi150dp0_1diag" # o sample from data o sample vgm
+model_dir: "./model_output/CNN/AE/NoClass/msessimlat48fr16_14dabgmnc20mi150dp0_1diag" # _ significa . decimal
+results_dir: "./results/CNN/AE/NoClass/msessimlat48fr16_14dabgmnc20mi150dp0_1diag"
 # model_dir: "./model_output/CNN/_VAE/NoClass/r1k0_3/OverFitcc10_4f0_9lat64fr32_31all" # _ significa . decimal
 # results_dir: "./results/CNN/_VAE/NoClass/r1k0_3/OverFitcc10_4f0_9lat64fr32_31all"
 feature:
   n_mels: 128
   n_fft: 1024
   hop_length: 512 # Numero de muestras que se saltan entre frames del espectrograma
-  n_frames: 8 # Potencia de 2 para que cnn no de problemas (o multiplo de 8 ya que hay 3 capas con stride 2x2)
-  n_hop_frames: 7
+  n_frames: 16 # Potencia de 2 para que cnn no de problemas (o multiplo de 8 ya que hay 3 capas con stride 2x2)
+  n_hop_frames: 14
 
 # Aleatoriedad
 seed: 42
 
 # Modelo
 model:
-  latent_dim: 24
+  latent_dim: 48
 
 # Entrenamiento
 train:
-  batch_size: 32
-  epochs: 2
+  batch_size: 64
+  epochs: 8
   # epochs: 30
-  learning_rate: 0.002
+  learning_rate: 0.0002
   # validation_split: 0.1
   # Pesos de Loss (Requisito clave)
   w_recon: 1.0

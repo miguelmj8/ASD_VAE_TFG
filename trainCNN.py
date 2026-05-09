@@ -8,7 +8,7 @@ import common as com
 import model.cnn_vae as cnn_vae
 
 params = com.yaml_load('parametersCNN.yaml')
-vae = True # flag para vae (true) o ae (false)
+vae = False # flag para vae (true) o ae (false)
 
 if __name__ == "__main__":
     # check mode
@@ -25,13 +25,18 @@ if __name__ == "__main__":
 
     # Selecciona todas las carpetas dentro de data_dir
     input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-
+    
+    if machine_type == 'todos':
+        dirs = com.select_dirs(params=params, mode=mode, input_type='wav', machine_type=machine_type, todos=False)
+        machine_types = [os.path.split(td)[1] for td in dirs]
+        dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, todos=True)
+    else:
+        dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, todos=False)
+        
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dirs = [dirs] if isinstance(dirs, str) else dirs
     for target_dir in dirs:
         if machine_type == "todos":
-            machine_types = [os.path.split(td)[1] for td in dirs]
             print(machine_types)
             target_dir = None
         else:
@@ -114,13 +119,13 @@ if __name__ == "__main__":
                 np.save(mean_img_path, m)
                 print(f'Saved mean and std for {machine_type} at {std_img_path}')
        
-        print(files[0])         
-        data_standarized[:] = np.tile(data_standarized[:N_windows_per_file], (len(files),1,1,1)) # Para entrenar con una sola muestra y sobreajustar
+        # print(files[0])         
+        # data_standarized[:] = np.tile(data_standarized[:N_windows_per_file], (len(files),1,1,1)) # Para entrenar con una sola muestra y sobreajustar
         dataset = torch.utils.data.TensorDataset(torch.tensor(data_standarized, dtype=torch.float32))
         
         if da: # si usamos data augmentation
             # data = np.concatenate((data, add_noise(data)), axis=0) # duplicamos el dataset añadiendo ruido a la mitad de las muestras
-            da_path = os.path.join(os.path.join(f'{params.da_dir}_{str(n_frames)}_{str(n_hop_frames)}', machine_type))
+            da_path = os.path.join(f'{params.da_dir}_{str(n_frames)}_{str(n_hop_frames)}', machine_type, 'recon')
             file_list = os.listdir(da_path)
             num_augmented_files = len(file_list)
             print(f"[*] Cargando {num_augmented_files} muestras de aumento de datos desde: {da_path}")

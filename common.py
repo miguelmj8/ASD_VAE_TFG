@@ -187,8 +187,8 @@ def check_npy(params, input_type='npy', machine_type=None, dir_name=None):
         flag_npy : boolean
         True if npy directory does not exist and input type is npy, False otherwise
     """
-    if machine_type is None or machine_type == "todos":
-        machine_type = "bearing"  # any machine type will do for the path check
+    if machine_type is None:
+        machine_type = "fan"  # any machine type will do for the path check
     print(f"Checking npy data for {dir_name} in {params.features_dir})")
     if input_type == 'npy':
         npy_path = os.path.abspath("{base}/{machine_type}".format(base=params.features_dir, machine_type=machine_type))
@@ -210,7 +210,7 @@ def check_npy(params, input_type='npy', machine_type=None, dir_name=None):
     else:
         return 'wav', False
 
-def select_dirs(params, mode, input_type ='wav', machine_type=None, dir_name=None):
+def select_dirs(params, mode, input_type ='wav', machine_type=None, todos=False):
     """
     Return list of directories (one for each machine type), falgnpy (compute and save npy), inputtype
     file_list_generator selects train or test folder inside each dir
@@ -236,10 +236,10 @@ def select_dirs(params, mode, input_type ='wav', machine_type=None, dir_name=Non
     # print(f"flag_npy: {flag_npy}")
 
     if mode and input_type=='wav':
-        logger.info("load_directory <- development (wav input)")
+        logger.info("load_directory <- development or validation (wav input)")
         query = os.path.abspath("{base}/*".format(base=params.data_dir))
     elif mode and input_type=='npy':
-        logger.info("load_directory <- development (npy input)")
+        logger.info("load_directory <- development or validation (npy input)")
         query = os.path.abspath("{base}/*".format(base=params.features_dir))
     elif not mode and input_type=='wav':
         logger.info("load_directory <- evaluation (wav input)")
@@ -248,7 +248,10 @@ def select_dirs(params, mode, input_type ='wav', machine_type=None, dir_name=Non
         logger.info("load_directory <- evaluation (npy input)")
         query = os.path.abspath("{base}/*".format(base=params.features_dir))
     dirs = sorted(glob.glob(query))
-    dirs = [f for f in dirs if os.path.isdir(f) and 'todos' not in f]
+    if todos and input_type == 'npy':
+        dirs = [f for f in dirs if os.path.isdir(f) and 'todos' in f]
+    else:
+        dirs = [f for f in dirs if os.path.isdir(f) and 'todos' not in f]
     if machine_type is not None and machine_type != 'todos':
         dirs = [d for d in dirs if machine_type in os.path.basename(d)][0]
     # return dirs, flag_npy, input_type
@@ -293,19 +296,25 @@ def file_list_generator(target_dir,
     n_files_per_mt=[]
     # logger.info("target_dir : {}".format(target_dir + "_" + section_name))
     # Si target_dir es None, escribe "Todos" como texto
-    logger.info(f"target_dir : {target_dir or 'Todos'}_{section_name}")
+    logger.info(f"target_dir : {target_dir or 'todos'}_{section_name}")
     # Train
     if dir_name == "train": # En modo dev solo normales en train
         if target_dir is None: # para un solo modelo con todas las maquinas (train todos)
             queries = []
-            target_dirs = select_dirs(params=params, mode=mode, input_type=input_type, dir_name=dir_name)
+            target_dirs = select_dirs(params=params, mode=mode, input_type='wav', todos=False)
+            queries = [os.path.join("{target_dir}/{dir_name}/{section_name}_*_{prefix_normal}_*.{input_type}".format(target_dir=target_dir,
+                                                                                                            dir_name=dir_name,
+                                                                                                            section_name=section_name,
+                                                                                                            prefix_normal=prefix_normal,
+                                                                                                            input_type='wav')) for target_dir in target_dirs]
+            n_files_per_mt = np.array([len(glob.glob(q)) for q in queries])
+            target_dirs = select_dirs(params=params, mode=mode, input_type=input_type, todos=True)
             queries = [os.path.join("{target_dir}/{dir_name}/{section_name}_*_{prefix_normal}_*.{input_type}".format(target_dir=target_dir,
                                                                                                             dir_name=dir_name,
                                                                                                             section_name=section_name,
                                                                                                             prefix_normal=prefix_normal,
                                                                                                             input_type=input_type)) for target_dir in target_dirs]
             normal_files = sorted([f for q in queries for f in glob.glob(q)])
-            n_files_per_mt = np.array([len(glob.glob(q)) for q in queries])
             print(f'query train todos: {queries}, {len(normal_files)} archivos encontrados')
         else:
             query = os.path.join("{target_dir}/{dir_name}/{section_name}_*_{prefix_normal}_*.{input_type}".format(target_dir=target_dir,
@@ -324,7 +333,7 @@ def file_list_generator(target_dir,
         logger.info("#files : {num}".format(num=len(files)))
         if len(files) == 0:
             logger.exception("No files!!")
-            print(f'no hay nada en {query}')
+            print(f'no hay nada en {query if target_dir else queries}')
         print("========================================")
 
     # Test | directorio test tiene normales y anomalos
@@ -575,7 +584,7 @@ def add_noise(data, noise_factor=0.05):
     data_n = data*(1-noise_factor) + noise_factor * xrms * noise # mantiene potencia original
     return data_n
 
-def std_mt(params,data, mt_counts, machine_types, cnn):
+def std_mt(params,data,mt_counts,machine_types,cnn):
     """
     Estandariza los datos en bloques basados en una tupla de conteos.
     Estandariza cada tipo de maquina con su media y varianza

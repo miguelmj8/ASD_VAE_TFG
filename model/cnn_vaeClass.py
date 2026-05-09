@@ -95,9 +95,9 @@ class CNN_VAE(nn.Module):
             if self.training:
                 z = self.reparameterize(mu, logvar)
             else:
-                # z = self.reparameterize(mu, logvar)
+                z = self.reparameterize(mu, logvar)
                 # z = self.reparameterize(mu*0, logvar*0)
-                z = mu # Inferencia con mu (sin generacion)
+                # z = mu # Inferencia con mu (sin generacion)
             logits = self.classifier(z)
             # logits = self.classifier(mu)
         # AE
@@ -123,6 +123,7 @@ def VAE_loss_function(recon_x, x, mu, logvar, pred_probs, target_class):
     recon_loss = F.mse_loss(recon_x, x, reduction='mean')
     # recon_loss = com.cross_correlation_loss(x,recon_x,max_df=5,max_dt=2,freq_scale=0.25)
     # recon_loss = 1-ssim(recon_x, x, data_range=6.0)
+    recon_loss = 0.5*recon_loss + 0.5*(1 - ssim(recon_x, x, data_range=6.0))
 
     # KL Divergence loss F.kl_div
     kld_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())

@@ -14,8 +14,8 @@ from torchmetrics.functional import structural_similarity_index_measure as ssim
 
 # model_type = # Comprobar flag cnn o lineal en comando
 
-vae = False
-classification = False
+vae = True
+classification = True
 cnn = True
 recon = False # coge el logmelspec reconstruido guardado y lo utiliza como file de entrada
 npy = False
@@ -39,17 +39,16 @@ n_fft = params.feature.n_fft
 
 # audio_dir = "../data/data/valve/test/section_00_source_test_normal_0007_pat_01.wav"
 # file = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_normal_0007_pat_01.npy']
-# audio_dir = "../data/data/valve/test/section_00_source_test_anomaly_0048_pat_01.wav"
-# file = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_anomaly_0048_pat_01.npy'] # cambiar parametro a wav
+audio_dir = "../data/data/valve/test/section_00_source_test_anomaly_0048_pat_01.wav"
+file = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_anomaly_0048_pat_01.npy'] # cambiar parametro a wav
 # audio_dir = "../data/data/valve/train/section_00_source_train_normal_0000_pat_00.wav" # Usado en overfit
 # file = ['../data/Features/melspec_311_128/valve/train/section_00_source_train_normal_0000_pat_00.npy']
-# machine_type = "valve"
-
-audio_dir = "../data/data/bearing/test/section_00_source_test_normal_0011_vel_6.wav"
-file = ['../data/Features/melspec_311_128/bearing/test/section_00_source_test_normal_0011_vel_6.npy']
+machine_type = "valve"
+# audio_dir = "../data/data/bearing/test/section_00_source_test_normal_0011_vel_6.wav"
+# file = ['../data/Features/melspec_311_128/bearing/test/section_00_source_test_normal_0011_vel_6.npy']
 # audio_dir = "../data/data/bearing/test/section_00_source_test_anomaly_0000_vel_6.wav"
 # file = ['../data/Features/melspec_311_128/bearing/test/section_00_source_test_anomaly_0000_vel_6.npy']
-machine_type = "bearing"
+# machine_type = "bearing"
 # audio_dir = "../data/data/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.wav"
 # file = ['../data/Features/melspec_311_128/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.npy']
 # machine_type = "gearbox"
@@ -66,8 +65,8 @@ machine_type = "bearing"
 # file = ['../data/Features/melspec_311_128/ToyTrain/test/section_01_source_test_anomaly_0008_car_A1_spd_10_mic_1_noise_1.npy']
 # machine_type = "ToyTrain"
 
-# machine_type_model = 'todos'
-machine_type_model = machine_type
+machine_type_model = 'todos'
+# machine_type_model = machine_type
 
 recon_path = os.path.join('../data/prueabas',os.path.basename(file[0]).replace('.npy','_reconstructed.npy'))
 if recon:
@@ -87,8 +86,9 @@ if recon:
 trueLabel = 'NORMAL' if 'normal' in os.path.basename(audio_dir) else 'ANOMALOUS'
 
 # Asignar m_id y s_id correctamente siguiendo el orden de testCNNClass.py
-input_type, flag_npy = com.check_npy(params=params, input_type='wav', machine_type='todos', dir_name='test')
-dirs = com.select_dirs(params=params, mode=False, input_type=input_type, machine_type='todos', dir_name='test')
+_, input_type, _, _, da = com.command_line_chk('train')
+input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name='train')
+dirs = com.select_dirs(params=params, mode=False, input_type=input_type, machine_type='todos')
 machine_types = [os.path.split(d)[1] for d in dirs]
 m_id = machine_types.index(machine_type)
 
@@ -96,13 +96,15 @@ m_id = machine_types.index(machine_type)
 basename = os.path.basename(audio_dir)
 s_id = int(basename.split('_')[1])  # section_00 -> 0
 
+target_dir = os.path.join(params.features_dir if input_type == 'npy' else params.data_dir,
+                          machine_type)
 files_train, _,_ = com.file_list_generator(
     # target_dir=None if machine_type == "todos" else os.path.join(params.data_dir, machine_type),
-    target_dir = os.path.join(params.features_dir, machine_type),
+    target_dir = target_dir,
     section_name="*",
     dir_name='train',
     mode=True,
-    input_type='npy',
+    input_type=input_type,
     params=params)
 
 if cnn:
@@ -114,9 +116,9 @@ if cnn:
                                            n_hop_frames=n_hop_frames,
                                            n_fft=n_fft,
                                            hop_length=hop_length,
-                                           input_type='npy',
+                                           input_type=input_type,
                                            machine_type=machine_type,
-                                           flag_npy=False,
+                                           flag_npy=flag_npy,
                                            dir_name='train')
 
     # Audio de inferencia
@@ -130,7 +132,7 @@ if cnn:
                                          hop_length=hop_length,
                                          input_type='npy' if npy else 'wav',
                                          machine_type=machine_type,
-                                         flag_npy=False,
+                                         flag_npy=npy,
                                          dir_name='train')
 
     m = np.load(os.path.join(params.data_dir, machine_type, f'mean_img_{n_frames}_{n_hop_frames}_{machine_type}.npy'))[0,:,:]
@@ -146,7 +148,7 @@ else:
                                         n_hop_frames=n_hop_frames,
                                         n_fft=n_fft,
                                         hop_length=hop_length,
-                                        input_type='npy',
+                                        input_type=input_type,
                                         machine_type=machine_type,
                                         flag_npy=flag_npy,
                                         dir_name='train')
@@ -159,7 +161,7 @@ else:
                                      hop_length=hop_length,
                                      input_type='npy' if npy else 'wav',
                                      machine_type=machine_type,
-                                     flag_npy=flag_npy,
+                                     flag_npy=npy,
                                      dir_name='train')
     # data_inf = com.file_to_vectors(audio_dir, n_mels=n_mels, n_frames=n_frames,
     #                               n_fft=n_fft, hop_length=hop_length, input_type='wav')[::n_hop_frames,:]
@@ -193,6 +195,23 @@ else:
     y, sr = com.load_audio(audio_dir)
     # Calcular logmelspec original
     logmelspec = com.melspectrogram(y, sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels)
+if da:
+    loaded_data = []
+    shapes = []
+    for i in range(N_windows_per_file):
+        data = np.load(os.path.join(f'{params.da_dir}_{str(n_frames)}_{str(n_hop_frames)}', 'todos', 'recon', f'bgm_sampled_batch_0_{i}.npy'))
+        loaded_data.append(data)
+    loaded_data = np.concatenate(loaded_data, axis=0)
+    print(f'Data loadad shape es: {loaded_data.shape}')
+    logmelspec_da = np.zeros_like(logmelspec)
+    count = np.zeros_like(logmelspec)
+    for w in range(N_windows_per_file):
+        logmelspec_da[:,w*n_hop_frames:w*n_hop_frames+n_frames] = loaded_data[w,:,:]
+        count[:,w*n_hop_frames:w*n_hop_frames+n_frames]+=1
+    fig10, ax10 = plt.subplots(figsize=(8, 6))
+    img0 = librosa.display.specshow(logmelspec_da, sr=sr, hop_length=hop_length,
+                                    y_axis='mel', x_axis='time', ax=ax10, cmap = 'magma')
+    ax10.set_title("DA Mel-Spectrogram")
 
 # PARA IMAGEN GUARDADA
 # logmelspecw=logmelspeci*(s+1e-8)+m
@@ -268,8 +287,8 @@ if not os.path.exists(recon_path):
 
 
 
-fig0, ax0 = plt.subplots(figsize=(8, 6))
-com.plot_mag_melspectrogram(y, sr,n_fft=n_fft, hop_length=hop_length, n_mels=n_mels, ax=ax0,title="Mel-Spectrogram")
+# fig0, ax0 = plt.subplots(figsize=(8, 6))
+# com.plot_mag_melspectrogram(y, sr,n_fft=n_fft, hop_length=hop_length, n_mels=n_mels, ax=ax0,title="Mel-Spectrogram")
 # com.plot_mag_spectrogram(y, sr, n_fft=n_fft, hop_length=hop_length, ax=ax0,title="Spectrogram")
 
 # Dibujar espectrogramas
@@ -457,13 +476,13 @@ print(f'potencia error= {logmel_diff.mean()}')
 # if vae:
 #     kld_train = np.genfromtxt(os.path.join(params.model_dir, machine_type, f'kld_{machine_type}.csv'))
 #     kld_train = kld_train.reshape(N_windows_tot_train//N_windows_per_file,-1)
-    
+
 #     avg_kld = np.mean(kld_train, axis=0)
 #     cov_matrix = np.cov(kld_train, rowvar=False)
 #     inv_cov_matrix = np.linalg.pinv(cov_matrix)
 #     mah_scores_kld = np.array([mahalanobis(kld, avg_kld, inv_cov_matrix)])
 #     as_kld_mah = mah_scores_kld.mean(keepdims=True)
-    
+
 #     oc_svm_logvar = joblib.load(os.path.join(oc_svm_path,f'oc_svm_logvar_{machine_type}.joblib'))
 #     oc_svm_logvar_dct = joblib.load(os.path.join(oc_svm_path,f'oc_svm_logvar_dct_{machine_type}.joblib'))
 #     oc_svm_kld = joblib.load(os.path.join(oc_svm_path,f'oc_svm_kld_{machine_type}.joblib'))
@@ -491,7 +510,7 @@ print(f'potencia error= {logmel_diff.mean()}')
 # if os.path.exists(ocsvm_thresholds_path):
 #     ocsvm_thresholds = np.loadtxt(ocsvm_thresholds_path, delimiter=',')
 #     print(f"Loaded 1-Class SVM thresholds from: {ocsvm_thresholds_path}")
-    
+
 #     # Create anomaly scores with calculated mahalanobis and zeros for others
 #     # print(ocsvm_thresholds.shape)
 #     as_zeros = np.zeros(1)
@@ -535,7 +554,7 @@ print(f'potencia error= {logmel_diff.mean()}')
 # if ocsvm_predictions is not None:
 #     # Compute mean of both predictions for ensemble vote
 #     all_preds = np.column_stack([cnn_predictions, ocsvm_predictions])
-    
+
 #     # Cargar la combinación ganadora del ensemble si existe
 #     ensemble_combination_path = os.path.join(params.results_dir, 'val', machine_type, f'ensemble_combination_{machine_type}.npy')
 #     if os.path.exists(ensemble_combination_path):
@@ -551,7 +570,7 @@ print(f'potencia error= {logmel_diff.mean()}')
 #         subset_preds = all_preds
 #         combination = list(range(all_preds.shape[1]))
 #         print(f'No saved ensemble combination found in {ensemble_combination_path}, using majority vote of all predictions')
-    
+
 #     scores_names = np.array(cnn_score_names + ocsvm_score_names)
 #     print(f"CNN Prediction Vector: {cnn_predictions[0]}")
 #     print(f"1CSVM Prediction Vector: {ocsvm_predictions[0]}")

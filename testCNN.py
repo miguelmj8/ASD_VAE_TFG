@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     # Selecciona todas las carpetas dentro de data_dir
     input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type)
     print(f"machine_type: {machine_type}, dirs: {dirs}")
     if machine_type == "todos":
         todos = True
@@ -112,7 +112,7 @@ if __name__ == "__main__":
                                                 flag_npy=flag_npy)
         # ___________ Para inferir modelo con audios de otra maquina
         # input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-        # dir_otro = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type='valve', dir_name=dir_name)
+        # dir_otro = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type='valve')
         # files_otro,_,_ = com.file_list_generator(target_dir=dir_otro,
         #                                         section_name="*",
         #                                         dir_name=dir_name,
@@ -294,6 +294,7 @@ if __name__ == "__main__":
                 as_ssim_loss = np.mean(all_ssim_loss[idxs:idxe])
                 as_ssim_loss_var = np.var(all_ssim_loss[idxs:idxe])
                 as_ssim_loss_max = np.max(all_ssim_loss[idxs:idxe])
+                as_msessim = 0.5*as_mse + 0.5*as_ssim_loss
                 as_var = np.mean(all_variance[idxs:idxe])
                 as_var_var = np.var(all_variance[idxs:idxe])
                 as_ptp = np.ptp(all_ima_err_ref[idxs:idxe])
@@ -323,6 +324,7 @@ if __name__ == "__main__":
                 # anomaly_scores_list.append(anomaly_score)
                 anomaly_scores_list.append([as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp,as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] +
                                            ([as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp] if vae else []))
+                # anomaly_scores_list.append([as_msessim])
                 # anomaly_scores_list.append([as_loss_var,as_loss_max,as_var,as_ptp,as_kld_ptp])
                 # anomaly_scores_list.append([as_cc_loss,as_cc_loss_var,as_cc_loss_max])
                 # idxs = idxe
@@ -356,7 +358,7 @@ if __name__ == "__main__":
                 if threshold_type == 'test':
                     thresholds = np.percentile(anomaly_scores_array, 50,axis=0) # sacar un threshold para as loss, var, ptp...
                 os.makedirs(os.path.dirname(thresholds_path),exist_ok=True)
-                np.savetxt(thresholds_path,thresholds,delimiter=',')
+                # np.savetxt(thresholds_path,thresholds,delimiter=',')
             labels_pred = (anomaly_scores_array > thresholds).astype(int)
             percentiles = np.mean(1-labels_pred,axis=0)*100 # con que percentil de los datos se corresponde el umbral fijado
             print(f'audiolabelarrayshape: {audio_label_array.shape}, labels_predshape: {labels_pred.shape}, anomly_scores_arrayshape: {anomaly_scores_array.shape}')

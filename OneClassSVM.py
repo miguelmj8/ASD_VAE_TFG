@@ -16,9 +16,9 @@ np.set_printoptions(precision=3, suppress=True)
 
 params = com.yaml_load(yaml_file="./parameters.yaml")
 params = com.yaml_load(yaml_file="./parametersCNN.yaml")
-params = com.yaml_load(yaml_file="./parametersCNNClass.yaml")
+# params = com.yaml_load(yaml_file="./parametersCNNClass.yaml")
 
-vae = True
+vae = False
 section = 0
 
 if __name__ == "__main__":
@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
     results_dir = os.path.join(params.results_dir, 'val' if mode else 'test') if dir_name == 'test' else params.model_dir
-    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type)
     dirs = [dirs] if isinstance(dirs, str) else dirs
     for target_dir in dirs:
         machine_type = os.path.split(target_dir)[1] # Metricas para cada maquina
@@ -120,10 +120,10 @@ if __name__ == "__main__":
         mu_eval = np.load(mu_eval_path)
         loss_eval_path = os.path.join(results_dir, machine_type, f'reconst_loss_{machine_type}.csv')
         loss_eval = np.genfromtxt(loss_eval_path,delimiter=',')
-        ima_err_eval_path = os.path.join(f'../data/ima_err',machine_type,'test',f'ima_err8x8_{machine_type}.npy')
-        ima_err_eval = np.load(ima_err_eval_path)
-        ima_err_var_eval_path = os.path.join(f'../data/ima_err',machine_type,'test',f'ima_err_var8x8_{machine_type}.npy')
-        ima_err_var_eval = np.load(ima_err_var_eval_path)
+        # ima_err_eval_path = os.path.join(f'../data/ima_err',machine_type,'test',f'ima_err8x8_{machine_type}.npy')
+        # ima_err_eval = np.load(ima_err_eval_path)
+        # ima_err_var_eval_path = os.path.join(f'../data/ima_err',machine_type,'test',f'ima_err_var8x8_{machine_type}.npy')
+        # ima_err_var_eval = np.load(ima_err_var_eval_path)
 
         mu_train = mu_train[sections_train_id>=section]
         loss_train = loss_train[sections_train_id>=section]

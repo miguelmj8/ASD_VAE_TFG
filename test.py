@@ -218,6 +218,8 @@ if __name__ == "__main__":
                 as_mse = np.mean(all_reconst_loss[idxs:idxe])
                 as_mse_var = np.var(all_reconst_loss[idxs:idxe])
                 as_mse_max = np.max(all_reconst_loss[idxs:idxe])
+                as_mse_min = np.min(all_reconst_loss[idxs:idxe])
+                as_mse_median = np.median(all_reconst_loss[idxs:idxe])
                 as_var = np.mean(all_variance[idxs:idxe])
                 as_var_var = np.var(all_variance[idxs:idxe])
                 as_ptp = np.ptp(all_se[idxs:idxe])
@@ -228,7 +230,7 @@ if __name__ == "__main__":
                     as_kld_min = np.min(all_kld[idxs:idxe])
                     as_kld_ptp = np.ptp(all_kld[idxs:idxe])
 
-                anomaly_scores_list.append([as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp] + 
+                anomaly_scores_list.append([as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_mse_min,as_mse_median,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp] + 
                                            ([as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp] if vae else []))
 
             # print(f"recloss: {all_reconst_loss[:40]}\n")
@@ -267,7 +269,7 @@ if __name__ == "__main__":
             aucs = [roc_auc_score(audio_label_array,anomaly_scores_array[:,i]) for i in range(labels_pred.shape[1])]
             aucs = np.array(aucs)
 
-            as_names = ["as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp"] + \
+            as_names = ["as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_mse_min","as_mse_median","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp"] + \
                       (["as_kld","-as_kld_var","-as_kld_max","as_kld_min","as_kld_ptp","-as_kld_ptp"] if vae else [])
             labels_pred_path = os.path.join(results_dir, machine_type, 'predictions', f'labels_pred_test_{machine_type}.csv')
             os.makedirs(os.path.dirname(labels_pred_path), exist_ok=True)

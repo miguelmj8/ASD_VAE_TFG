@@ -101,6 +101,7 @@ def spectrogram(audio, n_fft = 2048, hop_length = 2048):
 def melspectrogram(audio, sr, n_fft = 2048, hop_length = 2048, n_mels=64):
     M = librosa.feature.melspectrogram(y=audio, sr = sr, n_fft = n_fft, hop_length = hop_length, n_mels=n_mels, center = False)
     M_db = librosa.power_to_db(M, ref=1e-12) # or ref=np.max
+    # M_db = M
     return M_db
 
 def plot_mag_spectrogram(audio, sr, n_fft = 2048, hop_length = 2048, scale = 'linear', ax = None, \
@@ -338,6 +339,9 @@ def file_list_generator(target_dir,
 
     # Test | directorio test tiene normales y anomalos
     else: # siempre se hace eval para cada maquina por separado
+        if target_dir is None: # para un solo modelo con todas las maquinas (eval todos)
+            print('ERROR: Se debe hacer evaluacion por separado cada maquina')
+            sys.exit(1)
         query_normal = os.path.abspath("{target_dir}/{dir_name}/{section_name}_*_{prefix_normal}_*.{input_type}".format(target_dir=target_dir,
                                                                                                         dir_name=dir_name,
                                                                                                         section_name=section_name,

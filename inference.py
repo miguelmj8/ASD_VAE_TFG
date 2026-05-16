@@ -37,12 +37,12 @@ n_mels = params.feature.n_mels
 hop_length = params.feature.hop_length
 n_fft = params.feature.n_fft
 
-audio_dir = "../data/data/valve/test/section_00_source_test_normal_0007_pat_01.wav"
-file = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_normal_0007_pat_01.npy']
+# audio_dir = "../data/data/valve/test/section_00_source_test_normal_0007_pat_01.wav"
+# file = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_normal_0007_pat_01.npy']
 # audio_dir = "../data/data/valve/test/section_00_source_test_anomaly_0048_pat_01.wav"
 # file = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_anomaly_0048_pat_01.npy'] # cambiar parametro a wav
-# audio_dir = "../data/data/valve/train/section_00_source_train_normal_0000_pat_00.wav" # Usado en overfit
-# file = ['../data/Features/melspec_311_128/valve/train/section_00_source_train_normal_0000_pat_00.npy']
+audio_dir = "../data/data/valve/train/section_00_source_train_normal_0000_pat_00.wav" # Usado en overfit
+file = ['../data/Features/melspec_311_128/valve/train/section_00_source_train_normal_0000_pat_00.npy']
 machine_type = "valve"
 # audio_dir = "../data/data/bearing/test/section_00_target_test_normal_0005_vel_26.wav" # mucho as_var
 # audio_dir = "../data/data/bearing/test/section_00_source_test_normal_0011_vel_6.wav"
@@ -60,7 +60,7 @@ machine_type = "valve"
 # audio_dir = "../data/data/fan/test/section_01_source_test_normal_0009_f-n_A.wav" # mse elevado
 # audio_dir = "../data/data/fan/test/section_01_source_test_normal_0017_f-n_A.wav" # mse bajo
 # # audio_dir = "../data/data/fan/test/section_00_target_test_anomaly_0004_m-n_Z.wav" # mse_var elevado
-# # audio_dir = "../data/data/fan/test/section_01_source_test_anomaly_0018_f-n_A.wav" # mse_var bajo
+# audio_dir = "../data/data/fan/test/section_01_source_test_anomaly_0018_f-n_A.wav" # mse_var bajo en linealaeNC
 # # audio_dir = "../data/data/fan/test/section_00_source_test_anomaly_0047_m-n_W.wav"
 # # file = ['../data/Features/melspec_311_128/fan/test/section_00_source_test_anomaly_0047_m-n_W.npy']
 # # audio_dir = "../data/data/fan/test/section_00_source_test_normal_0030_m-n_W.wav"
@@ -71,7 +71,7 @@ machine_type = "valve"
 # audio_dir = "../data/data/slider/test/section_00_target_test_normal_0012_vel_600.wav"
 # file = ['../data/Features/melspec_311_128/slider/test/section_00_target_test_normal_0012_vel_600.npy']
 # machine_type = "slider"
-audio_dir = "../data/data/ToyCar/test/section_02_source_test_normal_0045_car_A2_spd_40V_mic_1_noise_1.wav" # kld bajo
+# audio_dir = "../data/data/ToyCar/test/section_02_source_test_normal_0045_car_A2_spd_40V_mic_1_noise_1.wav" # kld bajo
 # audio_dir = "../data/data/ToyCar/test/section_02_target_test_anomaly_0032_car_A2_spd_34V_mic_2_noise_2.wav" # kld alto
 # audio_dir = "../data/data/ToyCar/test/section_02_source_test_normal_0031_car_A1_spd_40V_mic_1_noise_1.wav" # mse bajo
 # audio_dir = "../data/data/ToyCar/test/section_02_target_test_normal_0010_car_A1_spd_34V_mic_2_noise_2.wav" # mse elevado
@@ -79,7 +79,7 @@ audio_dir = "../data/data/ToyCar/test/section_02_source_test_normal_0045_car_A2_
 # file = ['../data/Features/melspec_311_128/ToyCar/test/section_00_source_test_normal_0034_car_E1_spd_28V_mic_1_noise_1.npy']
 # audio_dir = "../data/data/ToyCar/test/section_00_source_test_anomaly_0027_car_E1_spd_28V_mic_1_noise_1.wav"
 # file = ['../data/Features/melspec_311_128/ToyCar/test/section_00_source_test_anomaly_0027_car_E1_spd_28V_mic_1_noise_1.npy']
-machine_type = "ToyCar"
+# machine_type = "ToyCar"
 # audio_dir = "../data/data/ToyTrain/test/section_02_source_test_normal_0039_car_A1_spd_10_mic_1_noise_1.wav"
 # file = ['../data/Features/melspec_311_128/ToyTrain/test/section_02_source_test_normal_0039_car_A1_spd_10_mic_1_noise_1.npy']
 # # audio_dir = "../data/data/ToyTrain/test/section_01_source_test_anomaly_0008_car_A1_spd_10_mic_1_noise_1.wav"
@@ -372,14 +372,15 @@ max_val = se.topk(k=5, dim=1).values.mean(dim=1).numpy()
 if vae:
     kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1) # shape: [batch_size] | solo para VAE
     kld = kld.numpy()
-    if classification:
-        target_class = com.get_target_class(np.repeat(m_id,n_elements), np.repeat(s_id,n_elements), n_elements, device, n_classes=n_classes, n_sub=n_sub)
-        class_loss = F.binary_cross_entropy(class_prob, target_class, reduction='none')
-        class_loss = class_loss.view(n_elements, -1).sum(dim=1)
-        class_loss = class_loss.numpy()
-else:
-    if classification:
-        class_loss = np.zeros(n_elements)
+
+if classification:
+    target_class = com.get_target_class(np.repeat(m_id,n_elements), np.repeat(s_id,n_elements), n_elements, device, n_classes=n_classes, n_sub=n_sub)
+    class_loss = F.binary_cross_entropy(class_prob, target_class, reduction='none')
+    class_loss = class_loss.view(n_elements, -1).sum(dim=1)
+    class_loss = class_loss.numpy()
+# else:
+#     if classification:
+#         class_loss = np.zeros(n_elements)
 
 if cnn:
     # Compute CC loss dividir logmelspecc (original) en windows
@@ -415,6 +416,12 @@ if classification:
     as_class_min = class_loss.min()
     as_class_ptp = as_class_max - as_class_min
 
+
+
+as_pred_eval_path = os.path.join(params.results_dir,'val' if mode else 'test',machine_type,'predictions',f'as_pred_test_{machine_type}.csv')
+as_pred_eval = np.loadtxt(as_pred_eval_path,delimiter=',')
+as_pred_train_path = os.path.join(params.model_dir,machine_type,'predictions',f'as_pred_test_{machine_type}.csv')
+as_pred_train = np.loadtxt(as_pred_train_path,delimiter=',')
 # Anomaly scores array (single audio = single row)
 anomaly_scores_cnn = np.array([[as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp] + ([as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] if cnn else []) +
                                         ([as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp] if vae else []) +
@@ -423,17 +430,21 @@ anomaly_scores_cnn = np.array([[as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse
 # Load CNN thresholds
 # cnn_thresholds_path = os.path.join(params.results_dir, 'val', machine_type, 'thresholds',
 #                                    f'thresholds_test_{machine_type}.csv')
-cnn_thresholds_path = os.path.join(params.results_dir, 'val', machine_type, 'thresholds',
+cnn_thresholds_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, 'thresholds',
                                    f'thresholds_train_{machine_type}.csv')
 if os.path.exists(cnn_thresholds_path):
     cnn_thresholds = np.loadtxt(cnn_thresholds_path, delimiter=',')
+    # cnn_thresholds = np.percentile(anomaly_scores_cnn, 90, axis=0)
     print(f"Loaded CNN thresholds from: {cnn_thresholds_path}")
 else:
     print(f"Warning: CNN thresholds file not found at {cnn_thresholds_path}")
-    cnn_thresholds = np.percentile(anomaly_scores_cnn, 50, axis=0)
+    cnn_thresholds = np.percentile(as_pred_eval, 50, axis=0)
+    cnn_thresholds = np.percentile(as_pred_train, 80, axis=0)
 
 # Compare CNN scores with CNN thresholds
 cnn_predictions = (anomaly_scores_cnn > cnn_thresholds).astype(int)
+cnn_pred_percentiles = np.mean(1-(as_pred_eval > anomaly_scores_cnn), axis=0)*100
+cnn_pred_percentiles_train = np.mean(1-(as_pred_train > anomaly_scores_cnn), axis=0)*100
 print("\nCNN-Based Predictions:")
 print(f"Machine Type: {machine_type}")
 
@@ -441,10 +452,10 @@ cnn_score_names = ["as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max
                 (["as_kld","-as_kld_var","-as_kld_max","as_kld_min","as_kld_ptp","-as_kld_ptp"] if vae else []) + \
                 (["as_class","as_class_var","-as_class_var","as_class_max","as_class_min","as_class_ptp"] if classification else [])
 
-for i, (name, score, threshold, pred) in enumerate(zip(
-    cnn_score_names, anomaly_scores_cnn[0], cnn_thresholds, cnn_predictions[0])):
+for i, (name, score, threshold, pred, percentil, percentil_train) in enumerate(zip(
+    cnn_score_names, anomaly_scores_cnn[0], cnn_thresholds, cnn_predictions[0], cnn_pred_percentiles, cnn_pred_percentiles_train)):
     status = "Anomalous" if pred == 1 else "Normal"
-    print(f"Score {i} ({name}): {score:.4f} vs Threshold {threshold:.4f} -> {status}")
+    print(f"Score {i} ({name}): {score:.4f} vs Threshold {threshold:.4f} -> {status} Percentil {percentil:.2f}% de eval, {percentil_train:.2f} de train")
 
 # -------- 1-Class SVM Anomaly Scores --------
 print("\n" + "="*60)
@@ -523,50 +534,62 @@ as_mu_mah_dct = -oc_svm_mu_mah_dct.decision_function(dct.dct(torch.from_numpy(ma
 as_loss = -oc_svm_loss.decision_function(losses.reshape(1,-1))
 as_loss_dct = -oc_svm_loss_dct.decision_function(dct.dct(torch.from_numpy(losses.reshape(1,-1,n_elements)), norm='ortho').reshape(1,-1))
 
+as_pred_1csvm_eval_path = os.path.join(params.results_dir,'val' if mode else 'test',machine_type,'predictions',f'as_pred_1csvm_{machine_type}.csv')
+as_pred_1csvm_eval = np.loadtxt(as_pred_1csvm_eval_path,delimiter=',')
+as_pred_1csvm_train_path = os.path.join(params.model_dir,machine_type,'predictions',f'as_pred_1csvm_{machine_type}.csv')
+as_pred_1csvm_train = np.loadtxt(as_pred_1csvm_train_path,delimiter=',')
 
 # Load 1-Class SVM thresholds
 # ocsvm_thresholds_path = os.path.join(params.results_dir, 'val', machine_type, 'thresholds',
 #                                      f'thresholds_test_1csvm_{machine_type}.csv')
-ocsvm_thresholds_path = os.path.join(params.results_dir, 'val', machine_type, 'thresholds',
+
+ocsvm_thresholds_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, 'thresholds',
                                      f'thresholds_train_1csvm_{machine_type}.csv')
 if os.path.exists(ocsvm_thresholds_path):
     ocsvm_thresholds = np.loadtxt(ocsvm_thresholds_path, delimiter=',')
+    # ocsvm_thresholds = np.percentile(ocsvm_thresholds, 90, axis=0)  # Usar percentil 90 como umbral
     print(f"Loaded 1-Class SVM thresholds from: {ocsvm_thresholds_path}")
-
-    # Create anomaly scores with calculated mahalanobis and zeros for others
-    # print(ocsvm_thresholds.shape)
-    as_zeros = np.zeros(1)
-    if vae:
-        anomaly_scores_ocsvm = np.concatenate((as_data,as_data_var,-as_data_var,as_data_ptp,-as_data_ptp,
-                                                as_mu,as_mu_dct,-as_mu_dct,as_mu_mah_dct,-as_mu_mah_dct,as_mu_mah,as_avg_mu_mah,as_mu_mah_mah,-as_mu_mah_mah,as_max_mu_mah,as_min_mu_mah,as_var_mu_mah,-as_var_mu_mah,
-                                            as_loss,as_loss_dct,-as_loss_dct,as_logvar,-as_logvar,as_logvar_dct,-as_logvar_dct,
-                                            as_kld,-as_kld,as_kld_dct,-as_kld_dct,as_kld_mah,-as_kld_mah))
-        # anomaly_scores_ocsvm = np.concatenate((as_data,-as_data_var,as_data_var,as_data_ptp,-as_data_ptp,np.zeros(1)))
-        ocsvm_score_names = ["as_data","as_data_var","-as_data_var","as_data_ptp","-as_data_ptp",
-                            "as_mu","as_mu_dct","-as_mu_dct","as_mu_mah_dct","-as_mu_mah_dct","as_mu_mah","as_avg_mu_mah","as_mu_mah_mah","-as_mu_mah_mah","as_max_mu_mah","as_min_mu_mah","as_var_mu_mah","-as_var_mu_mah",
-                            "as_loss","as_loss_dct","-as_loss_dct","as_logvar","-as_logvar","as_logvar_dct","-as_logvar_dct",
-                            "as_kld","-as_kld","as_kld_dct","-as_kld_dct","as_kld_mah","-as_kld_mah"]
-    else:
-        anomaly_scores_ocsvm = np.concatenate((as_data,as_data_var,-as_data_var,as_data_ptp,-as_data_ptp,
-                                            as_mu,as_mu_dct,-as_mu_dct,as_mu_mah_dct,-as_mu_mah_dct,as_mu_mah,as_avg_mu_mah,as_mu_mah_mah,-as_mu_mah_mah,as_max_mu_mah,as_min_mu_mah,as_var_mu_mah,-as_var_mu_mah,
-                                            as_loss,as_loss_dct,-as_loss_dct))
-        # anomaly_scores_ocsvm = np.concatenate((as_data,-as_data_var,as_data_var,as_data_ptp,-as_data_ptp,np.zeros(1)))
-        ocsvm_score_names = ["as_data","as_data_var","-as_data_var","as_data_ptp","-as_data_ptp",
-                            "as_mu","as_mu_dct","-as_mu_dct","as_mu_mah_dct","-as_mu_mah_dct","as_mu_mah","as_avg_mu_mah","as_mu_mah_mah","-as_mu_mah_mah","as_max_mu_mah","as_min_mu_mah","as_var_mu_mah","-as_var_mu_mah",
-                            "as_loss","as_loss_dct","-as_loss_dct"]
-
-    print(anomaly_scores_ocsvm.shape,ocsvm_thresholds.shape)
-    # Compare 1CSVM scores with thresholds
-    ocsvm_predictions = (anomaly_scores_ocsvm > ocsvm_thresholds).astype(int)
-    ocsvm_predictions = ocsvm_predictions.reshape(1,-1)
-    print("1-Class SVM Predictions:")
-    for i, (name, score, threshold, pred) in enumerate(zip(
-        ocsvm_score_names, anomaly_scores_ocsvm, ocsvm_thresholds, ocsvm_predictions[0])):
-        status = "Anomalous" if pred == 1 else "Normal"
-        print(f"  Score {i+anomaly_scores_cnn.shape[1]} ({name}): {score:.4f} vs Threshold {threshold:.4f} -> {status}")
 else:
     print(f"Warning: 1-Class SVM thresholds not found at {ocsvm_thresholds_path}")
-    ocsvm_predictions = None
+    ocsvm_thresholds = np.percentile(as_pred_1csvm_eval, 50, axis=0)
+    ocsvm_thresholds = np.percentile(as_pred_1csvm_train, 80, axis=0)
+
+    # ocsvm_predictions = None
+
+
+
+# Create anomaly scores with calculated mahalanobis and zeros for others
+# print(ocsvm_thresholds.shape)
+if vae:
+    anomaly_scores_ocsvm = np.concatenate((as_data,as_data_var,-as_data_var,as_data_ptp,-as_data_ptp,
+                                            as_mu,as_mu_dct,-as_mu_dct,as_mu_mah_dct,-as_mu_mah_dct,as_mu_mah,as_avg_mu_mah,as_mu_mah_mah,-as_mu_mah_mah,as_max_mu_mah,as_min_mu_mah,as_var_mu_mah,-as_var_mu_mah,
+                                        as_loss,as_loss_dct,-as_loss_dct,as_logvar,-as_logvar,as_logvar_dct,-as_logvar_dct,
+                                        as_kld,-as_kld,as_kld_dct,-as_kld_dct,as_kld_mah,-as_kld_mah))
+    # anomaly_scores_ocsvm = np.concatenate((as_data,-as_data_var,as_data_var,as_data_ptp,-as_data_ptp,np.zeros(1)))
+    ocsvm_score_names = ["as_data","as_data_var","-as_data_var","as_data_ptp","-as_data_ptp",
+                        "as_mu","as_mu_dct","-as_mu_dct","as_mu_mah_dct","-as_mu_mah_dct","as_mu_mah","as_avg_mu_mah","as_mu_mah_mah","-as_mu_mah_mah","as_max_mu_mah","as_min_mu_mah","as_var_mu_mah","-as_var_mu_mah",
+                        "as_loss","as_loss_dct","-as_loss_dct","as_logvar","-as_logvar","as_logvar_dct","-as_logvar_dct",
+                        "as_kld","-as_kld","as_kld_dct","-as_kld_dct","as_kld_mah","-as_kld_mah"]
+else:
+    anomaly_scores_ocsvm = np.concatenate((as_data,as_data_var,-as_data_var,as_data_ptp,-as_data_ptp,
+                                        as_mu,as_mu_dct,-as_mu_dct,as_mu_mah_dct,-as_mu_mah_dct,as_mu_mah,as_avg_mu_mah,as_mu_mah_mah,-as_mu_mah_mah,as_max_mu_mah,as_min_mu_mah,as_var_mu_mah,-as_var_mu_mah,
+                                        as_loss,as_loss_dct,-as_loss_dct))
+    # anomaly_scores_ocsvm = np.concatenate((as_data,-as_data_var,as_data_var,as_data_ptp,-as_data_ptp,np.zeros(1)))
+    ocsvm_score_names = ["as_data","as_data_var","-as_data_var","as_data_ptp","-as_data_ptp",
+                        "as_mu","as_mu_dct","-as_mu_dct","as_mu_mah_dct","-as_mu_mah_dct","as_mu_mah","as_avg_mu_mah","as_mu_mah_mah","-as_mu_mah_mah","as_max_mu_mah","as_min_mu_mah","as_var_mu_mah","-as_var_mu_mah",
+                        "as_loss","as_loss_dct","-as_loss_dct"]
+
+print(anomaly_scores_ocsvm.shape,ocsvm_thresholds.shape)
+# Compare 1CSVM scores with thresholds
+ocsvm_predictions = (anomaly_scores_ocsvm > ocsvm_thresholds).astype(int)
+ocsvm_predictions = ocsvm_predictions.reshape(1,-1)
+ocsvm_pred_percentiles = np.mean(1-(as_pred_1csvm_eval > anomaly_scores_ocsvm), axis=0)*100
+ocsvm_pred_percentiles_train = np.mean(1-(as_pred_1csvm_train > anomaly_scores_ocsvm), axis=0)*100
+print("1-Class SVM Predictions:")
+for i, (name, score, threshold, pred, percentil, percentil_train) in enumerate(zip(
+    ocsvm_score_names, anomaly_scores_ocsvm, ocsvm_thresholds, ocsvm_predictions[0], ocsvm_pred_percentiles, ocsvm_pred_percentiles_train)):
+    status = "Anomalous" if pred == 1 else "Normal"
+    print(f"  Score {i+anomaly_scores_cnn.shape[1]} ({name}): {score:.4f} vs Threshold {threshold:.4f} -> {status} Percentil {percentil:.2f}% de eval, {percentil_train:.2f} de train")
 
 # -------- Ensemble Prediction --------
 print("\n" + "="*60)

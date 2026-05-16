@@ -11,8 +11,8 @@ import sys
 import common as com
 
 params = com.yaml_load('parameters.yaml')
-params = com.yaml_load('parametersCNN.yaml')
-params = com.yaml_load('parametersCNNClass.yaml')
+# params = com.yaml_load('parametersCNN.yaml')
+# params = com.yaml_load('parametersCNNClass.yaml')
 
 # EJECUCION
 # python tsne_mu_visualization.py \
@@ -23,7 +23,7 @@ params = com.yaml_load('parametersCNNClass.yaml')
 # EJECUCION (mio)
     #--machine_type valve
 def main(mode, machine_type, da):
-    dir_names = ['train'] # 'test', 'train'
+    dir_names = ['train','test'] # 'test', 'train'
     # results_dir = os.path.join(params.results_dir, 'val' if mode else 'test') if dir_name == 'test' else params.model_dir
     files = []
     labels = []
@@ -41,7 +41,9 @@ def main(mode, machine_type, da):
             labels_dir=[]
             print(f"com")
             i = 0
-            for target_dir in com.select_dirs(params=params, mode=mode, input_type='wav'):
+            dirs = com.select_dirs(params=params, mode=mode, input_type='wav')
+            machine_types_names = [os.path.split(td)[1] for td in dirs]
+            for target_dir in dirs:
                 files_mt, labels_mt,_ = com.file_list_generator(
                     target_dir=target_dir,
                     section_name="*",
@@ -113,17 +115,18 @@ def main(mode, machine_type, da):
         learning_rate=1000,
         max_iter=500,
         random_state=params.seed,
-        init="pca"
+        init="pca",
+        verbose=1
     )
 
 # __________________Descartar algunos valores___________
-    # frame_labels=frame_labels[::5] # Para representar uno de cada n valores
-    mu=mu[::20,:]
-    frame_dirs = frame_dirs[::20]
-    frame_labels=frame_labels[::20]
-    if not da:
-        frame_sections=frame_sections[::20]
-        frame_machine_types=frame_machine_types[::20]
+    frame_labels=frame_labels[::15] # Para representar uno de cada n valores
+    mu=mu[::15,:]
+    frame_dirs = frame_dirs[::15]
+    # frame_labels=frame_labels[::20]
+    # if not da:
+    #     frame_sections=frame_sections[::20]
+    #     frame_machine_types=frame_machine_types[::20]
     # frame_labels=frame_labels[:-20000]
     # mu=mu[:-20000,:]
     # frame_dirs = frame_dirs[:-20000]
@@ -155,7 +158,7 @@ def main(mode, machine_type, da):
     fig = plt.figure(figsize=(13, 5)) # Para 2D
 #     # ============================
 #     # 2D
-    ax1 = fig.add_subplot(121)
+    ax1 = fig.add_subplot(111)
 #     # ============================
 #     # 3D
 #     # ax = fig.add_subplot(111, projection='3d')
@@ -171,13 +174,15 @@ def main(mode, machine_type, da):
 #         s=10
 #     )
 #     plt.colorbar(scatter)
+    # names_map = [machine_types_names[i] for i in frame_machine_types]
     sns.scatterplot(x=mu_tsne[:, 0], 
         y=mu_tsne[:, 1], 
         # hue=frame_labels+2*frame_machine_types,    # Color según etiqueta (Normal/Anómalo)
-        hue=frame_machine_types,    # Color según tipo de maquia
-        # hue=frame_labels,    # Color según etiqueta (Normal/Anómalo)
+        # hue=frame_machine_types,    # Color según tipo de maquia
+        # hue = names_map,
+        hue=frame_labels,    # Color según etiqueta (Normal/Anómalo)
         # hue=frame_dirs,    # FORMA según directorio
-        # style=frame_labels,    # FORMA según directorio
+        style=frame_dirs,    # FORMA según directorio
         # style = frame_sections,
         ax=ax1, 
         palette="viridis",

@@ -66,15 +66,15 @@ if __name__ == "__main__":
 
         while not converged and n_try < max_try:
             n_try += 1
-            bgm = BayesianGaussianMixture(n_components=20,
+            bgm = BayesianGaussianMixture(n_components=50,
                                           random_state=42 + n_try, # Cambia semilla en cada intento
                                           n_init=1,
                                           max_iter=150,
                                           reg_covar=1e-3,
                                           mean_precision_prior=1e-1,
                                           weight_concentration_prior_type='dirichlet_process', # dd para usar mas clusteres, dp para favoreccer menos clusteres
-                                          weight_concentration_prior=1e-1, # cuanto mayor es favorece mas componentes activos
-                                          covariance_type='full',
+                                          weight_concentration_prior=1e-2, # cuanto mayor es favorece mas componentes activos
+                                          covariance_type='diag',
                                           verbose=2,
                                           verbose_interval=5).fit(mu_train)
             converged = bgm.converged_
@@ -88,7 +88,9 @@ if __name__ == "__main__":
         # Sample from BGM
         z_bgm = bgm.sample(n_windows)[0]
         z = torch.from_numpy(z_bgm).float().to(device)
-        print(f'Parametros BGM: n_components={bgm.n_components}, weights={bgm.weights_}, means={bgm.means_}, covariances={bgm.covariances_}')
+        print(f'Parametros BGM: n_components={bgm.n_components}, weights={bgm.weights_}')
+        # print(f'Means: {bgm.means_}')
+        # print(f'Covariances: {bgm.covariances_}')
 
         # From gaussian normal
         # mu = torch.zeros((n_windows, z_dim)).to(device) # mu=0 para generación desde el centroide

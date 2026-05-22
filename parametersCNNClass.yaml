@@ -2,21 +2,23 @@
 data_dir: "../data/data" # El query selecciona la carpeta de train o test
 features_dir: "../data/Features/melspec_311_128"
 # da_dir: "../data/Features/da/bgmnc20mi150dp0_1diag" # o sample from data o sample vgm
-da_dir: "../data/Features/da/bgmnc20mi150dp0_1diag" # o sample from data o sample vgm
-model_dir: "./model_output/CNN/VAE/class/r1k0_1c1znoSection/msessimlat48fr16_14all" # _ significa . decimal
-results_dir: "./results/CNN/VAE/class/r1k0_1c1znoSection/msessimlat48fr16_14all"
-# model_dir: "./model_output/CNN/VAE/class/r1k0_1c1znoSection/ssimlat64fr32_31all" # _ significa . decimal
-# results_dir: "./results/CNN/VAE/class/r1k0_1c1znoSection/ssimlat64fr32_31all"
+da_dir: "../data/Features/da/bgmnc50mi150dp0_01diagfromk0_0001mse" # o sample from data o sample vgm
+model_dir: "./model_output/CNN/VAE/class/r1k0_1c1znoSection/mselat24fr8_7all" # _ significa . decimal
+results_dir: "./results/CNN/VAE/class/r1k0_1c1znoSection/mselat24fr8_7all"
+# model_dir: "./model_output/CNN/AE/class/r1c1znoSection/mselat24fr8_7all" # _ significa . decimal
+# results_dir: "./results/CNN/AE/class/r1c1znoSection/mselat24fr8_7all"
+# model_dir: "./model_output/CNN/VAE/class/r1k0_1c1znoSection/mselat48fr16_14all" # _ significa . decimal
+# results_dir: "./results/CNN/VAE/class/r1k0_1c1znoSection/mselat48fr16_14all"
 # cc5_2f0_25
 # Audio
 feature:
   n_mels: 128
   n_fft: 1024
   hop_length: 512 # Numero de muestras que se saltan entre frames del espectrograma
-  n_frames: 16 # Potencia de 2 para que cnn no de problemas
-  n_hop_frames: 14
-  # n_frames: 32 # Potencia de 2 para que cnn no de problemas
-  # n_hop_frames: 31
+  n_frames: 8 # Potencia de 2 para que cnn no de problemas
+  n_hop_frames: 7
+  # n_frames: 16 # Potencia de 2 para que cnn no de problemas
+  # n_hop_frames: 14
 # Aleatoriedad
 seed: 42
 
@@ -24,13 +26,13 @@ seed: 42
 model:
   n_classes: 7
   n_sub: 1
-  latent_dim: 48
-  # latent_dim: 64
+  # latent_dim: 24
+  latent_dim: 24
 
 # Entrenamiento
 train:
-  batch_size: 128
-  epochs: 8
+  batch_size: 64
+  epochs: 10
   # epochs: 30
   learning_rate: 0.0001
   # validation_split: 0.1

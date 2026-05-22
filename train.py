@@ -140,9 +140,13 @@ if __name__ == "__main__":
       
         train_loss_path = os.path.join(os.path.dirname(model_file_path), f'train_loss_{machine_type}.csv')
         all_loss = []
+        all_kld_loss = []
+        all_reconst_loss = []
       
         for epoch in range(params.train.epochs):
             epoch_loss = 0.0 # para guardar loss por epoch
+            epoch_kld_loss = 0.0
+            epoch_reconst_loss = 0.0
             num_batches = 0
             for batch in tqdm(dataloader):
                 optimizer.zero_grad()
@@ -165,6 +169,9 @@ if __name__ == "__main__":
                 optimizer.step()
 
                 epoch_loss += loss.item()
+                if vae:
+                    epoch_kld_loss += kld.item()
+                    epoch_reconst_loss += reconst_loss.item()
                 num_batches += 1
                 # Print loss components every 100 batches
                 if num_batches % 100 == 0:
@@ -174,15 +181,20 @@ if __name__ == "__main__":
                         print(f"Batch {num_batches}: Loss={reconst_loss.item():.4f}")
                     
             all_loss.append(epoch_loss / num_batches) # loss medio por epoch
+            if vae:
+                all_kld_loss.append(epoch_kld_loss / num_batches)
+                all_reconst_loss.append(epoch_reconst_loss / num_batches)
             # CAMBIAR PRINT PARA QUE SALGA LA MEDIA
             print(f'Epoch [{epoch+1}/{params.train.epochs}], Loss: {all_loss[-1]:.3f}') # Imprime la loss media de cada epoch
 
         all_loss = np.array(all_loss)
+        if vae:
+            all_loss = np.column_stack((all_loss, np.array(all_kld_loss), np.array(all_reconst_loss)))
         os.makedirs(os.path.dirname(train_loss_path), exist_ok=True)
-        np.savetxt(train_loss_path, all_loss, delimiter=",")
+        np.savetxt(train_loss_path, all_loss, delimiter=",",header='total_loss' + (',kld_loss,reconst_loss' if vae else ''))
 
         # Save model
         torch.save(model, model_file_path)
-        print(f'============== END TRAINING for {machine_type} ==============\n')
+        print(f'============== END TRAINING for {machine_type} ==============\nModel saved at {model_file_path}')
         if target_dir is None:
             break  # when training for "todos", only do one iteration

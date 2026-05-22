@@ -148,11 +148,18 @@ if __name__ == "__main__":
         
         train_loss_path = os.path.join(os.path.dirname(model_file_path), f'train_loss_{machine_type}.txt')
         all_loss = []
-
+        all_class_loss = []
+        all_reconst_loss = []
+        if vae:
+            all_kld_loss = []
         start_time = time.time()
         # De aqui pa abajo NO he COMPROBADO
         for epoch in range(params.train.epochs):
             epoch_loss = 0.0
+            epoch_class_loss = 0.0
+            epoch_reconst_loss = 0.0
+            if vae:
+                epoch_kld_loss = 0.0
             num_batches = 0
             with tqdm(total=len(dataloader), desc=f'Epoch {epoch+1}/{params.train.epochs}', unit='batch') as pbar:
                 for batch_idx, (batch_data,m_id,s_id) in enumerate(dataloader):
@@ -181,6 +188,10 @@ if __name__ == "__main__":
                     optimizer.step()
 
                     epoch_loss += loss.item()
+                    epoch_class_loss += class_loss.item()
+                    epoch_reconst_loss += reconst_loss.item()
+                    if vae:
+                        epoch_kld_loss += kld.item()
                     num_batches += 1
                     
                     # Print loss components every 100 batches
@@ -196,14 +207,21 @@ if __name__ == "__main__":
             print(f'Learning rate actual: {lr}')
             scheduler.step(epoch_loss/num_batches)
             all_loss.append(epoch_loss / num_batches)
+            all_class_loss.append(epoch_class_loss / num_batches)
+            all_reconst_loss.append(epoch_reconst_loss / num_batches)
+            if vae:
+                all_kld_loss.append(epoch_kld_loss / num_batches)
             print(f'====> Epoch: {epoch+1}/{params.train.epochs} Average loss: {all_loss[-1]:.3f}')
 
         end_time = time.time()
         time = end_time - start_time
         print(f'Training time for {machine_type}: {time:.2f} seconds')
         all_loss = np.array(all_loss)
+        all_loss = np.column_stack((all_loss, np.array(all_reconst_loss), np.array(all_class_loss)))
+        if vae:
+            all_loss = np.column_stack((all_loss, np.array(all_kld_loss)))
         os.makedirs(os.path.dirname(train_loss_path), exist_ok=True)
-        np.savetxt(train_loss_path, all_loss, delimiter=',')
+        np.savetxt(train_loss_path, all_loss, delimiter=',',header='total_loss,reconst_loss,class_loss' + (',kld_loss' if vae else ''))
 
         # save model
         torch.save(model, model_file_path)

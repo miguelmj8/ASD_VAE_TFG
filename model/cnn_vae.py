@@ -103,8 +103,8 @@ def VAE_loss_function(recon_x, x, mu, logvar):
     """Loss function for VAE which consists of reconstruction and KL divergence losses.
     """
     # Reconstruction loss puedo usar mse, smooth_l1_loss o l1_loss
-    # recon_loss = F.mse_loss(recon_x, x, reduction='mean')
-    recon_loss = com.cross_correlation_loss(x,recon_x,max_df=10,max_dt=4,freq_scale=0.9)
+    recon_loss = F.mse_loss(recon_x, x, reduction='mean')
+    # recon_loss = com.cross_correlation_loss(x,recon_x,max_df=10,max_dt=4,freq_scale=0.9)
     # recon_loss = 1-ssim(recon_x, x, data_range=6.0)
     # KL Divergence loss F.kl_div
     kld_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())

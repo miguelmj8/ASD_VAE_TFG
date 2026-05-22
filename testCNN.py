@@ -16,7 +16,7 @@ import common as com
 np.set_printoptions(precision=3, suppress=True)
 
 params = com.yaml_load('parametersCNN.yaml')
-vae = False # flag para vae (true) o ae (false)
+vae = True # flag para vae (true) o ae (false)
 
 def save_csv(save_file_path, save_data):
     with open(save_file_path, "w", newline="") as f:
@@ -288,6 +288,8 @@ if __name__ == "__main__":
                 as_mse = np.mean(all_reconst_loss[idxs:idxe])
                 as_mse_var = np.var(all_reconst_loss[idxs:idxe])
                 as_mse_max = np.max(all_reconst_loss[idxs:idxe])
+                as_mse_min = np.min(all_reconst_loss[idxs:idxe])
+                as_mse_median = np.median(all_reconst_loss[idxs:idxe])
                 as_cc_loss = np.mean(all_cc_loss[idxs:idxe])
                 as_cc_loss_var = np.var(all_cc_loss[idxs:idxe])
                 as_cc_loss_max = np.max(all_cc_loss[idxs:idxe])
@@ -322,7 +324,7 @@ if __name__ == "__main__":
                 # avg_less_score = np.mean(np.partition(all_ima_err_ref[idxs:idxe], 2, axis=None)[:2])
                 # anomaly_score = avg_top_score - avg_less_score
                 # anomaly_scores_list.append(anomaly_score)
-                anomaly_scores_list.append([as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp,as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] +
+                anomaly_scores_list.append([as_msessim,as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_mse_min,as_mse_median,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp,as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] +
                                            ([as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp] if vae else []))
                 # anomaly_scores_list.append([as_msessim])
                 # anomaly_scores_list.append([as_loss_var,as_loss_max,as_var,as_ptp,as_kld_ptp])
@@ -358,7 +360,7 @@ if __name__ == "__main__":
                 if threshold_type == 'test':
                     thresholds = np.percentile(anomaly_scores_array, 50,axis=0) # sacar un threshold para as loss, var, ptp...
                 os.makedirs(os.path.dirname(thresholds_path),exist_ok=True)
-                # np.savetxt(thresholds_path,thresholds,delimiter=',')
+                np.savetxt(thresholds_path,thresholds,delimiter=',')
             labels_pred = (anomaly_scores_array > thresholds).astype(int)
             percentiles = np.mean(1-labels_pred,axis=0)*100 # con que percentil de los datos se corresponde el umbral fijado
             print(f'audiolabelarrayshape: {audio_label_array.shape}, labels_predshape: {labels_pred.shape}, anomly_scores_arrayshape: {anomaly_scores_array.shape}')
@@ -368,7 +370,7 @@ if __name__ == "__main__":
             aucs = [roc_auc_score(audio_label_array,anomaly_scores_array[:,i]) for i in range(labels_pred.shape[1])]
             aucs = np.array(aucs)
 
-            as_names = ["as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp","as_cc_loss","as_cc_loss_var","as_cc_loss_max","as_ssim_loss","as_ssim_loss_var","as_ssim_loss_max"] + \
+            as_names = ["as_msessim","as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_mse_min","as_mse_median","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp","as_cc_loss","as_cc_loss_var","as_cc_loss_max","as_ssim_loss","as_ssim_loss_var","as_ssim_loss_max"] + \
                         (["as_kld","-as_kld_var","-as_kld_max","as_kld_min","as_kld_ptp","-as_kld_ptp"] if vae else [])
             labels_pred_path = os.path.join(results_dir, machine_type, 'predictions', f'labels_pred_test_{machine_type}.csv')
             os.makedirs(os.path.dirname(labels_pred_path), exist_ok=True)

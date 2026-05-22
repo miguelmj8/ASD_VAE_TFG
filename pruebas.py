@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import re
 import numpy as np
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, roc_auc_score, RocCurveDisplay, average_precision_score, fbeta_score, accuracy_score
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, roc_auc_score, RocCurveDisplay, roc_curve, average_precision_score, recall_score, fbeta_score, accuracy_score
 from scipy.stats import spearmanr
 
 import common as com
@@ -11,11 +11,11 @@ import common as com
 # dibujar histograma confusion matrix etc
 params = com.yaml_load('parameters.yaml')
 params = com.yaml_load('parametersCNN.yaml')
-params = com.yaml_load('parametersCNNClass.yaml')
+# params = com.yaml_load('parametersCNNClass.yaml')
 
-as_type = 17 # seleccionar que tipo de as representar (0=as_data,1=-as_data_var,2=as_data_ptp...)
-as_type2 = 34
-#28  34   9 -asptp
+as_type = 29 # seleccionar que tipo de as representar (0=as_data,1=-as_data_var,2=as_data_ptp...)
+as_type2 = 29
+#28  34   9 -asptp 24 31 2 29
 
 _, _, machine_type, dir_name, da = com.command_line_chk('test')
 
@@ -59,11 +59,11 @@ labels_pred_train = np.hstack([labels_pred_train.view(float).reshape(len(labels_
                                labels_pred_1csvm_train.view(float).reshape(len(labels_pred_1csvm_train),-1)])
 
 
-labels_pred_val_path = os.path.join(results_dir_val, machine_type, 'predictions', f'labels_pred_test_{machine_type}.csv')
-labels_pred_val = np.loadtxt(labels_pred_val_path, delimiter=',')
-labels_pred_1csvm_val_path = os.path.join(results_dir_val, machine_type, 'predictions', f'labels_pred_1csvm_{machine_type}.csv')
-labels_pred_1csvm_val = np.loadtxt(labels_pred_1csvm_val_path,delimiter=',')
-labels_pred_test = np.column_stack([labels_pred_val,labels_pred_1csvm_val])
+# labels_pred_val_path = os.path.join(results_dir_val, machine_type, 'predictions', f'labels_pred_test_{machine_type}.csv')
+# labels_pred_val = np.loadtxt(labels_pred_val_path, delimiter=',')
+# labels_pred_1csvm_val_path = os.path.join(results_dir_val, machine_type, 'predictions', f'labels_pred_1csvm_{machine_type}.csv')
+# labels_pred_1csvm_val = np.loadtxt(labels_pred_1csvm_val_path,delimiter=',')
+# labels_pred_val = np.column_stack([labels_pred_val,labels_pred_1csvm_val])
 
 labels_pred_eval_path = os.path.join(results_dir_eval, machine_type, 'predictions', f'labels_pred_test_{machine_type}.csv')
 labels_pred_eval = np.loadtxt(labels_pred_eval_path, delimiter=',')
@@ -77,11 +77,11 @@ as_pred_1csvm_train_path = os.path.join(params.model_dir,machine_type,'predictio
 as_pred_1csvm_train = np.loadtxt(as_pred_1csvm_train_path,delimiter=',')
 as_pred_train = np.column_stack([as_pred_train,as_pred_1csvm_train])
 
-as_pred_val_path = os.path.join(results_dir_val,machine_type,'predictions',f'as_pred_test_{machine_type}.csv')
-as_pred_val = np.loadtxt(as_pred_val_path,delimiter=',')
-as_pred_1csvm_val_path = os.path.join(results_dir_val,machine_type,'predictions',f'as_pred_1csvm_{machine_type}.csv')
-as_pred_1csvm_val = np.loadtxt(as_pred_1csvm_val_path,delimiter=',')
-as_pred_val = np.column_stack([as_pred_val,as_pred_1csvm_val])
+# as_pred_val_path = os.path.join(results_dir_val,machine_type,'predictions',f'as_pred_test_{machine_type}.csv')
+# as_pred_val = np.loadtxt(as_pred_val_path,delimiter=',')
+# as_pred_1csvm_val_path = os.path.join(results_dir_val,machine_type,'predictions',f'as_pred_1csvm_{machine_type}.csv')
+# as_pred_1csvm_val = np.loadtxt(as_pred_1csvm_val_path,delimiter=',')
+# as_pred_val = np.column_stack([as_pred_val,as_pred_1csvm_val])
 
 as_pred_eval_path = os.path.join(results_dir_eval,machine_type,'predictions',f'as_pred_test_{machine_type}.csv')
 as_pred_eval = np.loadtxt(as_pred_eval_path,delimiter=',')
@@ -95,7 +95,8 @@ as_pred_eval = np.column_stack([as_pred_eval,as_pred_1csvm_eval])
 # thresholds_train_1csvm = np.loadtxt(thresholds_train_1csvm_path,delimiter=',')
 # thresholds = np.concatenate((thresholds_train,thresholds_train_1csvm)) # umbrales cargados
 
-thresholds = np.percentile(as_pred_train,85,axis=0) # recalculados con percentil
+# thresholds = np.percentile(as_pred_train,90,axis=0) # recalculados con percentil
+thresholds = np.percentile(as_pred_eval,50,axis=0) # recalculados con percentil
 labels_pred_train = (as_pred_train > thresholds).astype(int) # recalculados con nuevo umbral
 labels_pred_eval = (as_pred_eval > thresholds).astype(int)
 # labels_pred_val = (as_pred_val > thresholds).astype(int)
@@ -137,13 +138,22 @@ f_scores_eval = [fbeta_score(labels_eval,labels_pred_eval[:,i],beta=1) for i in 
 f_scores_eval = np.array(f_scores_eval)
 accuracies_eval = [accuracy_score(labels_eval,labels_pred_eval[:,i]) for i in range(labels_pred_eval.shape[1])]
 accuracies_eval = np.array(accuracies_eval)
+precision_eval = [average_precision_score(labels_eval,labels_pred_eval[:,i]) for i in range(labels_pred_eval.shape[1])]
+precision_eval = np.array(precision_eval)
+recall_eval = [recall_score(labels_eval,labels_pred_eval[:,i]) for i in range(labels_pred_eval.shape[1])]
+recall_eval = np.array(recall_eval)
 roc_eval = [roc_auc_score(labels_eval,as_pred_eval[:,i]) for i in range(as_pred_eval.shape[1])]
 roc_eval = np.array(roc_eval)
 
-print(f'Audios con mayor {names[as_type]}:\n{files_eval[np.argsort(as_pred_eval[:,as_type])[-5:][::-1]]}')
-print(f'Audios con menor {names[as_type]}:\n{files_eval[np.argsort(as_pred_eval[:,as_type])[:5]]}')
+fpr, tpr, th = roc_curve(labels_eval, as_pred_eval[:, as_type])
+idx = np.argmin(np.abs(th - thresholds[as_type]))
 
-print(f'Audios con {names[as_type]} mediano:\n{files_eval[np.argsort(as_pred_eval[:,as_type])[len(as_pred_eval)//2-2:len(as_pred_eval)//2+3]]}')
+current_fpr = fpr[idx]
+current_tpr = tpr[idx]
+
+# print(f'Audios con mayor {names[as_type]}:\n{files_eval[np.argsort(as_pred_eval[:,as_type])[-5:][::-1]]}')
+# print(f'Audios con menor {names[as_type]}:\n{files_eval[np.argsort(as_pred_eval[:,as_type])[:5]]}')
+# print(f'Audios con {names[as_type]} mediano:\n{files_eval[np.argsort(as_pred_eval[:,as_type])[len(as_pred_eval)//2-2:len(as_pred_eval)//2+3]]}')
 
 # correlation_eval = np.corrcoef(labels_pred_eval[:,as_type],labels_pred_eval[:,as_type2])[0,1] # correlacion etiquetas predichas
 # # correlation_eval, _ = spearmanr(labels_pred_eval[:,as_type], labels_pred_eval[:,as_type2])
@@ -157,7 +167,11 @@ print(f'Percentil threshold sobre eval: {percentil_eval}')
 
 print(f'F1 score eval: {f_scores_eval[as_type]}')
 print(f'Accuracie eval: {accuracies_eval[as_type]}')
+print(f'Precision eval: {precision_eval[as_type]}')
+print(f'Recall eval: {recall_eval[as_type]}')
 print(f'ROC eval: {roc_eval[as_type]}')
+print(f'FPS eval: {current_fpr}')
+print(f'TPR eval: {current_tpr}')
 
 print(f'Correlacion entre {names[as_type]} y {names[as_type2]}: {correlation_eval:.3f}')
 
@@ -190,8 +204,8 @@ disp = ConfusionMatrixDisplay(confusion_matrix=cm_eval, display_labels=['Normal'
 disp.plot(ax=ax1, colorbar=False)
 ax1.set_title(f'{machine_type} umbral: {percentil_train}%')
 ax2.hist(as_pred_train[:,as_type],bins=100,alpha=1,label='Normal (train set)',color='b',density=True)
-ax2.hist(as_pred_eval[labels_eval==0,as_type],bins=50,alpha=0.8,label='Normal',color='c',density=True)
-ax2.hist(as_pred_eval[labels_eval==1,as_type],bins=50,alpha=0.6,label='Anomalía',color='r',density=True)
+ax2.hist(as_pred_eval[labels_eval==0,as_type],bins=30,alpha=0.8,label='Normal',color='c',density=True)
+ax2.hist(as_pred_eval[labels_eval==1,as_type],bins=30,alpha=0.6,label='Anomalía',color='r',density=True)
 # ax2.hist(as_pred_val[labels_val==0,as_type],bins=25,alpha=0.8,label='Normal',color='b',density=True)
 # ax2.hist(as_pred_val[labels_val==1,as_type],bins=25,alpha=0.8,label='Anomalía',color='r',density=True)
 ax2.axvline(thresholds[as_type],color='black',linestyle='--',label=f'Threshold: {thresholds[as_type]:.3f}')
@@ -200,6 +214,17 @@ ax2.axvline(thresholds[as_type],color='black',linestyle='--',label=f'Threshold: 
 ax2.legend()
 fig2, ax20 = plt.subplots(figsize=(8, 6))
 RocCurveDisplay.from_predictions(labels_eval, as_pred_eval[:,as_type], ax=ax20)
+ax20.plot(
+    current_fpr,
+    current_tpr,
+    marker="o",
+    color="red",
+    markersize=5,
+    label=f"Umbral Actual ({thresholds[as_type]:.4f})",
+)
+
+# Actualizar la leyenda para incluir el marcador
+# ax20.legend(loc="lower right")
 ax20.plot([0, 1], [0, 1], linestyle="--", color="red", label="Decision aleatoria (AUC = 0.50)")
 ax20.legend(loc="lower right")
 

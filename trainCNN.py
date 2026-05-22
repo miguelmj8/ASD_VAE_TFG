@@ -8,7 +8,7 @@ import common as com
 import model.cnn_vae as cnn_vae
 
 params = com.yaml_load('parametersCNN.yaml')
-vae = False # flag para vae (true) o ae (false)
+vae = True # flag para vae (true) o ae (false)
 
 if __name__ == "__main__":
     # check mode
@@ -126,9 +126,9 @@ if __name__ == "__main__":
         if da: # si usamos data augmentation
             # data = np.concatenate((data, add_noise(data)), axis=0) # duplicamos el dataset añadiendo ruido a la mitad de las muestras
             da_path = os.path.join(f'{params.da_dir}_{str(n_frames)}_{str(n_hop_frames)}', machine_type, 'recon')
+            print(f"[*] Cargando {num_augmented_files} muestras de aumento de datos desde: {da_path}")
             file_list = os.listdir(da_path)
             num_augmented_files = len(file_list)
-            print(f"[*] Cargando {num_augmented_files} muestras de aumento de datos desde: {da_path}")
             augmented_data = np.empty((num_augmented_files, 1, params.feature.n_mels, n_frames), dtype=np.float32)
             for i, f in enumerate(tqdm(file_list, desc='Cargando datos aumentados', unit='file')):
                 augmented_data[i] = np.load(os.path.join(da_path, f))
@@ -146,10 +146,14 @@ if __name__ == "__main__":
         
         train_loss_path = os.path.join(os.path.dirname(model_file_path), f'train_loss_{machine_type}.txt')
         all_loss = []
+        all_kld_loss = []
+        all_reconst_loss = []
 
         # De aqui pa abajo NO he COMPROBADO
         for epoch in range(params.train.epochs):
             epoch_loss = 0.0
+            epoch_kld_loss = 0.0
+            epoch_reconst_loss = 0.0
             num_batches = 0
             with tqdm(total=len(dataloader), desc=f'Epoch {epoch+1}/{params.train.epochs}', unit='batch') as pbar:
                 for batch_idx, (batch_data,) in enumerate(dataloader):
@@ -174,6 +178,9 @@ if __name__ == "__main__":
                     optimizer.step()
 
                     epoch_loss += loss.item()
+                    if vae:
+                        epoch_kld_loss += kld.item()
+                        epoch_reconst_loss += reconst_loss.item()
                     num_batches += 1
                     if num_batches % 100 == 0:
                         if vae:
@@ -186,15 +193,20 @@ if __name__ == "__main__":
             print(f'Learning rate actual: {lr}')
             scheduler.step(epoch_loss/num_batches)
             all_loss.append(epoch_loss / num_batches)
+            if vae:
+                all_kld_loss.append(epoch_kld_loss / num_batches)
+                all_reconst_loss.append(epoch_reconst_loss / num_batches)
             print(f'====> Epoch: {epoch+1}/{params.train.epochs} Average loss: {all_loss[-1]:.3f}')
 
         all_loss = np.array(all_loss)
+        if vae:
+            all_loss = np.column_stack((all_loss, np.array(all_kld_loss), np.array(all_reconst_loss)))
         os.makedirs(os.path.dirname(train_loss_path), exist_ok=True)
-        np.savetxt(train_loss_path, all_loss, delimiter=',')
+        np.savetxt(train_loss_path, all_loss, delimiter=',',header='total_loss' + (',kld_loss,reconst_loss' if vae else ''))
 
         # save model
         torch.save(model, model_file_path)
-        print(f'============== END TRAINING for {machine_type} ==============\n')
+        print(f'============== END TRAINING for {machine_type} ==============\nModel saved at {model_file_path}')
         if target_dir is None:
             break  # when training for "todos", only do one iteration
 

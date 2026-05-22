@@ -18,7 +18,7 @@ params = com.yaml_load(yaml_file="./parameters.yaml")
 params = com.yaml_load(yaml_file="./parametersCNN.yaml")
 # params = com.yaml_load(yaml_file="./parametersCNNClass.yaml")
 
-vae = False
+vae = True
 section = 0
 
 if __name__ == "__main__":
@@ -470,12 +470,13 @@ if __name__ == "__main__":
         if dir_name == 'test':
             as_data = np.mean((data_eval-data_train.mean(axis=0))**2, axis=(1,2,3)) # error medio entre espectrograma y espectrograma avg de train de cada ventana
             as_data_var = np.var((data_eval-data_train.mean(axis=0))**2, axis=(1,2,3)) # varianza de error espectrograma - espectrograma medio de train
-            as_data_ptp = np.ptp((data_eval-data_train.mean(axis=0))**2, axis=(1,2,3)) # ptp del error espectrograma - espectrograma medio train
+            # as_data_ptp = np.ptp((data_eval-data_train.mean(axis=0))**2, axis=(1,2,3)) # ptp del error espectrograma - espectrograma medio train
             
             as_data = np.mean(as_data.reshape(N_windows_tot_eval//N_windows_per_file,-1),axis=1) # media entre todas las ventanas de cada audio
             as_data_var = np.var(as_data_var.reshape(N_windows_tot_eval//N_windows_per_file,-1),axis=1)
-            as_data_ptp = np.var(as_data_ptp.reshape(N_windows_tot_eval//N_windows_per_file,-1),axis=1)
-                    
+            # as_data_ptp = np.var(as_data_ptp.reshape(N_windows_tot_eval//N_windows_per_file,-1),axis=1)
+            as_data_ptp = np.ptp(((data_eval-data_train.mean(axis=0))**2).reshape(N_windows_tot_eval//N_windows_per_file,-1),axis=1)
+            
             as_avg_mu_mah = np.mean(attributes_eval_mu_mah,axis=1) # media de las distancias de mah seleccionadas (con partition)
             as_max_mu_mah = np.max(attributes_eval_mu_mah,axis=1) # max de las distancias de mah seleccionadas (con partition)
             as_min_mu_mah = np.min(att_eval_mu_mah_todos,axis=1) # max de las distancias de mah seleccionadas (con partition)
@@ -487,11 +488,12 @@ if __name__ == "__main__":
         else:
             as_data = np.mean((data_train-data_train.mean(axis=0))**2, axis=(1,2,3)) # error medio entre espectrograma y espectrograma avg de train de cada ventana
             as_data_var = np.var((data_train-data_train.mean(axis=0))**2, axis=(1,2,3)) # varianza de error espectrograma - espectrograma medio de train
-            as_data_ptp = np.ptp((data_train-data_train.mean(axis=0))**2, axis=(1,2,3)) # ptp del error espectrograma - espectrograma medio train
+            # as_data_ptp = np.ptp((data_train-data_train.mean(axis=0))**2, axis=(1,2,3)) # ptp del error espectrograma - espectrograma medio train
             
             as_data = np.mean(as_data.reshape(N_windows_tot_train//N_windows_per_file,-1),axis=1) # media entre todas las ventanas de cada audio
             as_data_var = np.var(as_data_var.reshape(N_windows_tot_train//N_windows_per_file,-1),axis=1)
-            as_data_ptp = np.mean(as_data_ptp.reshape(N_windows_tot_train//N_windows_per_file,-1),axis=1)
+            # as_data_ptp = np.var(as_data_ptp.reshape(N_windows_tot_train//N_windows_per_file,-1),axis=1)
+            as_data_ptp = np.ptp(((data_train-data_train.mean(axis=0))**2).reshape(N_windows_tot_train//N_windows_per_file,-1),axis=1)
 
             as_avg_mu_mah = np.mean(attributes_train_mu_mah,axis=1)
             as_max_mu_mah = np.max(attributes_train_mu_mah,axis=1)
@@ -534,7 +536,7 @@ if __name__ == "__main__":
             print(f'loading {thresholds_path}')
         else:
             if threshold_type == 'train':
-                thresholds = np.percentile(anomaly_scores, 70,axis=0) # sacar un threshold para as loss, var, ptp...
+                thresholds = np.percentile(anomaly_scores, 75,axis=0) # sacar un threshold para as loss, var, ptp...
             if threshold_type == 'test':
                 thresholds = np.percentile(anomaly_scores, 50,axis=0) # sacar un threshold para as loss, var, ptp...
             np.savetxt(thresholds_path,thresholds,delimiter=',')

@@ -101,7 +101,7 @@ if __name__ == "__main__":
         model.to(device)
         model.eval()
 
-        # print(f"model {params.model_dir}: {model}")  # imprime la estructura de la red
+        print(f"model {params.model_dir}: {model}")  # imprime la estructura de la red
         total_params = sum(p.numel() for p in model.parameters())
         print(f"Total parameters: {total_params}\nDevice: {device}")
 
@@ -183,6 +183,7 @@ if __name__ == "__main__":
         ima_err_var_path = os.path.join(f'../data/ima_err',machine_type,dir_name,f'ima_err_var8x8_{machine_type}.npy')
         ima_err_ref_path = os.path.join(f'../data/ima_err',machine_type,'train',f'ima_err_ref_{machine_type}.npy')
         all_mu,all_kld,all_logvar = [],[],[]
+        all_tot_loss = []
         all_reconst_loss,all_class_loss = [], []
         all_cc_loss,all_ssim_loss = [],[]
         all_variance = [] # Varianza del error de reconstruccion de cada audio
@@ -224,9 +225,15 @@ if __name__ == "__main__":
                 class_loss = F.binary_cross_entropy(class_prob, target_class, reduction='none')
                 class_loss = class_loss.view(x.size(0), -1).sum(dim=1)
                 # print(target_class[0],class_prob[0],class_loss[0],reconst_loss[0])
+                if vae:
+                    tot_loss = a_RECONST*reconst_loss + as_class*class_loss + all_kld*kld
+                else:
+                    tot_loss = a_RECONST*reconst_loss + as_class*class_loss
+                
                 all_mu.append(mu.cpu())
 
                 all_reconst_loss.append(reconst_loss.cpu())
+                all_tot_loss.append(tot_loss.cpu())
                 all_cc_loss.append(cc_loss.cpu())
                 all_ssim_loss.append(ssim_loss.cpu())
                 all_class_loss.append(class_loss.cpu())
@@ -247,6 +254,7 @@ if __name__ == "__main__":
                 np.save(all_logvar_path, all_logvar) # Para VAE
                 all_kld = torch.cat(all_kld, dim=0).numpy() # para VAE | comentar para AE
             all_reconst_loss = torch.cat(all_reconst_loss, dim=0).numpy()
+            all_tot_loss = torch.cat(all_tot_loss,dim=0).numpy()
             all_cc_loss = torch.cat(all_cc_loss, dim=0).numpy()
             all_ssim_loss = torch.cat(all_ssim_loss,dim=0).numpy()
             all_class_loss = torch.cat(all_class_loss, dim=0).numpy()
@@ -279,9 +287,12 @@ if __name__ == "__main__":
                 idxs = i*N_windows_per_file
                 idxe = idxs + N_windows_per_file # end idx
 
+                as_tot_loss = np.mean(all_tot_loss[idxs:idxe])
                 as_mse = np.mean(all_reconst_loss[idxs:idxe])
                 as_mse_var = np.var(all_reconst_loss[idxs:idxe])
                 as_mse_max = np.max(all_reconst_loss[idxs:idxe])
+                as_mse_min = np.min(all_reconst_loss[idxs:idxe])
+                as_mse_median = np.median(all_reconst_loss[idxs:idxe])
                 as_cc_loss = np.mean(all_cc_loss[idxs:idxe])
                 as_cc_loss_var = np.var(all_cc_loss[idxs:idxe])
                 as_cc_loss_max = np.max(all_cc_loss[idxs:idxe])
@@ -323,7 +334,7 @@ if __name__ == "__main__":
                 # anomaly_score = avg_top_score
                 # anomaly_score = avg_top_score - avg_less_score
                 # anomaly_scores_list.append(anomaly_score)
-                anomaly_scores_list.append([as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp,as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] +
+                anomaly_scores_list.append([as_msessim,as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_mse_min,as_mse_median,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp,as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] +
                                           ([as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp] if vae else []) +
                                            [as_class,as_class_var,-as_class_var,as_class_max,as_class_min,as_class_ptp])
                 # anomaly_scores_list.append([as_loss_var,as_loss_max,as_var,as_ptp,as_class,as_kld_var])
@@ -356,7 +367,7 @@ if __name__ == "__main__":
                 print(f'loading {thresholds_path}')
             else:
                 if threshold_type == 'train':
-                    thresholds = np.percentile(anomaly_scores_array,70,axis=0) # sacar un threshold para as loss, var, ptp...
+                    thresholds = np.percentile(anomaly_scores_array,75,axis=0) # sacar un threshold para as loss, var, ptp...
                 if threshold_type == 'test':
                     thresholds = np.percentile(anomaly_scores_array, 50,axis=0) # sacar un threshold para as loss, var, ptp...
                 os.makedirs(os.path.dirname(thresholds_path),exist_ok=True)
@@ -372,7 +383,7 @@ if __name__ == "__main__":
             accuracies = [accuracy_score(audio_label_array,labels_pred[:,i]) for i in range(labels_pred.shape[1])]
             accuracies = np.array(accuracies)
 
-            as_names = ["as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp","as_cc_loss","as_cc_loss_var","as_cc_loss_max","as_ssim_loss","as_ssim_loss_var","as_ssim_loss_max"] + \
+            as_names = ["as_msessim","as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_mse_min","as_mse_median","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp","as_cc_loss","as_cc_loss_var","as_cc_loss_max","as_ssim_loss","as_ssim_loss_var","as_ssim_loss_max"] + \
                         (["as_kld","-as_kld_var","-as_kld_max","as_kld_min","as_kld_ptp","-as_kld_ptp"] if vae else []) + \
                         ["as_class","as_class_var","-as_class_var","as_class_max","as_class_min","as_class_ptp"]
             labels_pred_path = os.path.join(results_dir, machine_type, 'predictions', f'labels_pred_test_{machine_type}.csv')
@@ -390,14 +401,14 @@ if __name__ == "__main__":
                         delimiter=",",
                         header=','.join(as_names),
                         fmt='%s')
-            if dir_name == 'test':
-                aucs_path = os.path.join(results_dir, machine_type, f'aucs_test_{machine_type}.csv')
-                os.makedirs(os.path.dirname(aucs_path), exist_ok=True)
-                np.savetxt(aucs_path,
-                        aucs.reshape(1,-1),
-                        delimiter=',',
-                        header=','.join(as_names),
-                        fmt='%s')
+
+            aucs_path = os.path.join(results_dir, machine_type, f'aucs_test_{machine_type}.csv')
+            os.makedirs(os.path.dirname(aucs_path), exist_ok=True)
+            np.savetxt(aucs_path,
+                    aucs.reshape(1,-1),
+                    delimiter=',',
+                    header=','.join(as_names),
+                    fmt='%s')
 
             # print(thresholds,labels,labels_pred)
             labels_pred_path = os.path.join(results_dir, machine_type, f'labels_pred_1csvm_{machine_type}.npy')

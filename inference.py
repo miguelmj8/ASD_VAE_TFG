@@ -14,8 +14,8 @@ from torchmetrics.functional import structural_similarity_index_measure as ssim
 
 # model_type = # Comprobar flag cnn o lineal en comando
 
-vae = False
-classification = True
+vae = True
+classification = False
 cnn = True
 recon = False # coge el logmelspec reconstruido guardado y lo utiliza como file de entrada
 npy = False
@@ -37,12 +37,14 @@ n_mels = params.feature.n_mels
 hop_length = params.feature.hop_length
 n_fft = params.feature.n_fft
 
+audio_dir = "../data/data/valve/test/section_02_target_test_anomaly_0013_v1pat_04_v2pat_05.wav" # poco as_data_ptp
+audio_dir = "../data/data/valve/test/section_02_target_test_normal_0007_v1pat_04_v2pat_05.wav" # mucho as_data_ptp
+# audio_dir = "../data/data/valve/train/section_00_source_train_normal_0000_pat_00.wav" # Usado en overfit
+file = ['../data/Features/melspec_311_128/valve/train/section_00_source_train_normal_0000_pat_00.npy']
 # audio_dir = "../data/data/valve/test/section_00_source_test_normal_0007_pat_01.wav"
 # file = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_normal_0007_pat_01.npy']
-# audio_dir = "../data/data/valve/test/section_00_source_test_anomaly_0048_pat_01.wav"
-# file = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_anomaly_0048_pat_01.npy'] # cambiar parametro a wav
-audio_dir = "../data/data/valve/train/section_00_source_train_normal_0000_pat_00.wav" # Usado en overfit
-file = ['../data/Features/melspec_311_128/valve/train/section_00_source_train_normal_0000_pat_00.npy']
+# audio_dir = "../data/data/valve/test/section_00_source_test_anomaly_0048_pat_01.wav" # chirrido
+# file = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_anomaly_0048_pat_01.npy']
 machine_type = "valve"
 # audio_dir = "../data/data/bearing/test/section_00_target_test_normal_0005_vel_26.wav" # mucho as_var
 # audio_dir = "../data/data/bearing/test/section_00_source_test_normal_0011_vel_6.wav"
@@ -50,13 +52,15 @@ machine_type = "valve"
 # audio_dir = "../data/data/bearing/test/section_00_source_test_anomaly_0000_vel_6.wav"
 # file = ['../data/Features/melspec_311_128/bearing/test/section_00_source_test_anomaly_0000_vel_6.npy']
 # machine_type = "bearing"
+audio_dir = "../data/data/gearbox/test/section_01_source_test_anomaly_0017_wt_0.wav" # elevado kld_ptp
+# audio_dir = "../data/data/gearbox/test/section_01_source_test_normal_0010_wt_0.wav" # bajo kld_ptp
 # audio_dir = "../data/data/gearbox/test/section_02_source_test_normal_0036_id_05.wav" # bajo mse
 # audio_dir = "../data/data/gearbox/test/section_02_source_test_anomaly_0012_id_08.wav" # mucho mse
 # audio_dir = "../data/data/gearbox/test/section_00_source_test_normal_0031_volt_1.5.wav"
 # file = ['../data/Features/melspec_311_128/gearbox/test/section_00_source_test_normal_0031_volt_1.5.npy']
-# audio_dir = "../data/data/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.wav"
-# file = ['../data/Features/melspec_311_128/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.npy']
-# machine_type = "gearbox"
+# # audio_dir = "../data/data/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.wav"
+# # file = ['../data/Features/melspec_311_128/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.npy']
+machine_type = "gearbox"
 # audio_dir = "../data/data/fan/test/section_01_source_test_normal_0009_f-n_A.wav" # mse elevado
 # audio_dir = "../data/data/fan/test/section_01_source_test_normal_0017_f-n_A.wav" # mse bajo
 # # audio_dir = "../data/data/fan/test/section_00_target_test_anomaly_0004_m-n_Z.wav" # mse_var elevado
@@ -66,6 +70,8 @@ machine_type = "valve"
 # # audio_dir = "../data/data/fan/test/section_00_source_test_normal_0030_m-n_W.wav"
 # # file = ['../data/Features/melspec_311_128/fan/test/section_00_source_test_normal_0030_m-n_W.npy']
 # machine_type = "fan"
+# audio_dir = "../data/data/slider/test/section_00_source_test_anomaly_0033_vel_900.wav" # ensemble [1 1 1 0 0] (['as_msessim' 'as_mse_max' 'as_var_var' 'as_class_max' 'as_class_ptp']
+# audio_dir = "../data/data/slider/test/section_00_source_test_normal_0018_vel_900.wav"  # ensemble [0 0 0 1 1] (['as_msessim' 'as_mse_max' 'as_var_var' 'as_class_max' 'as_class_ptp']
 # audio_dir = "../data/data/slider/test/section_00_target_test_anomaly_0036_vel_600.wav"
 # file = ['../data/Features/melspec_311_128/slider/test/section_00_target_test_anomaly_0036_vel_600.npy']
 # audio_dir = "../data/data/slider/test/section_00_target_test_normal_0012_vel_600.wav"
@@ -80,10 +86,12 @@ machine_type = "valve"
 # audio_dir = "../data/data/ToyCar/test/section_00_source_test_anomaly_0027_car_E1_spd_28V_mic_1_noise_1.wav"
 # file = ['../data/Features/melspec_311_128/ToyCar/test/section_00_source_test_anomaly_0027_car_E1_spd_28V_mic_1_noise_1.npy']
 # machine_type = "ToyCar"
+# audio_dir = "../data/data/ToyTrain/test/section_00_source_test_anomaly_0011_car_A2_spd_8_mic_1_noise_1.wav" # as_data_ptp mediano
+# # audio_dir = "../data/data/ToyTrain/test/section_02_source_test_normal_0004_car_A2_spd_8_mic_1_noise_1.wav" # as_data_ptp bajo
 # audio_dir = "../data/data/ToyTrain/test/section_02_source_test_normal_0039_car_A1_spd_10_mic_1_noise_1.wav"
 # file = ['../data/Features/melspec_311_128/ToyTrain/test/section_02_source_test_normal_0039_car_A1_spd_10_mic_1_noise_1.npy']
-# # audio_dir = "../data/data/ToyTrain/test/section_01_source_test_anomaly_0008_car_A1_spd_10_mic_1_noise_1.wav"
-# # file = ['../data/Features/melspec_311_128/ToyTrain/test/section_01_source_test_anomaly_0008_car_A1_spd_10_mic_1_noise_1.npy']
+# audio_dir = "../data/data/ToyTrain/test/section_01_source_test_anomaly_0008_car_A1_spd_10_mic_1_noise_1.wav"
+# file = ['../data/Features/melspec_311_128/ToyTrain/test/section_01_source_test_anomaly_0008_car_A1_spd_10_mic_1_noise_1.npy']
 # machine_type = "ToyTrain"
 
 machine_type_model = 'todos'
@@ -93,6 +101,7 @@ recon_path = os.path.join('../data/prueabas',os.path.basename(file[0]).replace('
 if recon:
     file = [recon_path]
 
+print(audio_dir)
 # PARA IMAGEN | tambien hay que descomentar lineas logmelspec mas abajo
 # img = mpimg.imread('C:/Users/migue/Desktop/vlcsnap-2025-09-15-19h41m17s704.png')
 # img = mpimg.imread('C:/Users/migue/Desktop/barras.png')
@@ -109,6 +118,7 @@ trueLabel = 'NORMAL' if 'normal' in os.path.basename(audio_dir) else 'ANOMALOUS'
 # Asignar m_id y s_id correctamente siguiendo el orden de testCNNClass.py
 mode, input_type, _, _, da = com.command_line_chk('train')
 input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name='train')
+input_type = 'npy'
 dirs = com.select_dirs(params=params, mode=False, input_type=input_type, machine_type='todos')
 machine_types = [os.path.split(d)[1] for d in dirs]
 m_id = machine_types.index(machine_type)
@@ -273,7 +283,10 @@ with torch.no_grad():
             reconstructed, mu = model(input_tensor) # AE noClass
 
     reconstructed = reconstructed.cpu().numpy()
-
+    # reconstructed = np.zeros_like(reconstructed) # Para comparar con img media | atajo
+    # classe = class_prob.cpu().numpy()
+    # print(np.mean(classe,axis=0))
+    
 # Reconstruir el espectrograma aproximado
 reconstructed_spec = np.zeros_like(logmelspec)
 n_elements = logmelspeci.shape[0] # N windows o N vectors | coincide con N_windows_per_file
@@ -312,7 +325,7 @@ if not os.path.exists(recon_path):
 fig0, ax0 = plt.subplots(figsize=(8, 6))
 com.plot_mag_melspectrogram(y, sr,n_fft=n_fft, hop_length=hop_length, n_mels=n_mels, ax=ax0,title="Mel-Spectrogram")
 # com.plot_mag_spectrogram(y, sr, n_fft=n_fft, hop_length=hop_length, ax=ax0,title="Spectrogram")
-
+# com.plot_audio(y,sr=sr,ax=ax0,title='Forma de onda')
 # Dibujar espectrogramas
 fig1, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
 # Calcular escala común (vmin y vmax)
@@ -344,10 +357,14 @@ img_diff = librosa.display.specshow(logmel_diff, sr=sr, hop_length=hop_length,
                                     y_axis='mel', x_axis='time', ax=ax3, vmin=0, vmax=_logmel_diff.max())
 ax3.set_title("Difference Mel-Spectrogram")
 plt.colorbar(img_diff, ax=ax3, format="%+2.f dB")
-print(f'Potencia error (MSE) = {(logmel_diff**2).mean()}')
+print(f'Potencia error (MSE) = {(_logmel_diff**2).mean()}')
+print(f'Potencia error (MSE) = {(_logmel_diff**2).mean()}')
+
 
 # fig2, ax20 = plt.subplots(1,1,figsize=(5,5))
 # img_err = plt.imshow(ima_err)
+
+
 
 
 
@@ -371,20 +388,20 @@ max_val = se.topk(k=5, dim=1).values.mean(dim=1).numpy()
 # Compute KLD and class loss if VAE
 if vae:
     kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1) # shape: [batch_size] | solo para VAE
-    kld = kld.numpy()
+    kld = kld.cpu().numpy()
 
 if classification:
     target_class = com.get_target_class(np.repeat(m_id,n_elements), np.repeat(s_id,n_elements), n_elements, device, n_classes=n_classes, n_sub=n_sub)
     class_loss = F.binary_cross_entropy(class_prob, target_class, reduction='none')
     class_loss = class_loss.view(n_elements, -1).sum(dim=1)
-    class_loss = class_loss.numpy()
+    class_loss = class_loss.cpu().numpy()
 # else:
 #     if classification:
 #         class_loss = np.zeros(n_elements)
 
 if cnn:
     # Compute CC loss dividir logmelspecc (original) en windows
-    cc_loss = com.cross_correlation_loss_test(reconstructedT,originalT,max_df=1,max_dt=2,freq_scale=0.4)
+    cc_loss = com.cross_correlation_loss_test(reconstructedT,originalT,max_df=4,max_dt=2,freq_scale=0.5)
     ssim_loss = 1-ssim(reconstructedT,originalT,data_range=6.0,reduction=None)
 
     as_cc_loss = cc_loss.mean()
@@ -399,10 +416,14 @@ if cnn:
 as_mse = reconst_loss.mean()
 as_mse_var = reconst_loss.var()
 as_mse_max = reconst_loss.max()
+as_mse_min = reconst_loss.min()
+as_mse_median = np.median(reconst_loss)
+as_msessim = 0.5*as_mse + 0.5*as_ssim_loss if cnn else as_mse
 
 as_var_var = variance.var()
 as_var = variance.mean()
-as_ptp = np.ptp(se.numpy())
+# as_ptp = np.ptp(se.numpy())
+as_ptp = as_mse_max - as_mse_min
 if vae:
     as_kld = kld.mean()
     as_kld_var = kld.var()
@@ -423,23 +444,24 @@ as_pred_eval = np.loadtxt(as_pred_eval_path,delimiter=',')
 as_pred_train_path = os.path.join(params.model_dir,machine_type,'predictions',f'as_pred_test_{machine_type}.csv')
 as_pred_train = np.loadtxt(as_pred_train_path,delimiter=',')
 # Anomaly scores array (single audio = single row)
-anomaly_scores_cnn = np.array([[as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp] + ([as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] if cnn else []) +
+anomaly_scores_cnn = np.array([[as_msessim,as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_mse_min,as_mse_median,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp] + ([as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] if cnn else []) +
                                         ([as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp] if vae else []) +
                                         ([as_class,as_class_var,-as_class_var,as_class_max,as_class_min,as_class_ptp] if classification else [])])
 
 # Load CNN thresholds
 # cnn_thresholds_path = os.path.join(params.results_dir, 'val', machine_type, 'thresholds',
 #                                    f'thresholds_test_{machine_type}.csv')
-cnn_thresholds_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, 'thresholds',
+cnn_thresholds_path = os.path.join(params.results_dir, 'val', machine_type, 'thresholds',
                                    f'thresholds_train_{machine_type}.csv')
-if os.path.exists(cnn_thresholds_path):
+# if os.path.exists(cnn_thresholds_path):
+if False:
     cnn_thresholds = np.loadtxt(cnn_thresholds_path, delimiter=',')
     # cnn_thresholds = np.percentile(anomaly_scores_cnn, 90, axis=0)
     print(f"Loaded CNN thresholds from: {cnn_thresholds_path}")
 else:
     print(f"Warning: CNN thresholds file not found at {cnn_thresholds_path}")
     cnn_thresholds = np.percentile(as_pred_eval, 50, axis=0)
-    cnn_thresholds = np.percentile(as_pred_train, 80, axis=0)
+    cnn_thresholds = np.percentile(as_pred_train, 70, axis=0)
 
 # Compare CNN scores with CNN thresholds
 cnn_predictions = (anomaly_scores_cnn > cnn_thresholds).astype(int)
@@ -448,14 +470,14 @@ cnn_pred_percentiles_train = np.mean(1-(as_pred_train > anomaly_scores_cnn), axi
 print("\nCNN-Based Predictions:")
 print(f"Machine Type: {machine_type}")
 
-cnn_score_names = ["as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp"] + (["as_cc_loss","as_cc_loss_var","as_cc_loss_max","as_ssim_loss","as_ssim_loss_var","as_ssim_loss_max"] if cnn else []) + \
+cnn_score_names = ["as_msessim","as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_mse_min","as_mse_median","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp"] + (["as_cc_loss","as_cc_loss_var","as_cc_loss_max","as_ssim_loss","as_ssim_loss_var","as_ssim_loss_max"] if cnn else []) + \
                 (["as_kld","-as_kld_var","-as_kld_max","as_kld_min","as_kld_ptp","-as_kld_ptp"] if vae else []) + \
                 (["as_class","as_class_var","-as_class_var","as_class_max","as_class_min","as_class_ptp"] if classification else [])
 
 for i, (name, score, threshold, pred, percentil, percentil_train) in enumerate(zip(
     cnn_score_names, anomaly_scores_cnn[0], cnn_thresholds, cnn_predictions[0], cnn_pred_percentiles, cnn_pred_percentiles_train)):
     status = "Anomalous" if pred == 1 else "Normal"
-    print(f"Score {i} ({name}): {score:.4f} vs Threshold {threshold:.4f} -> {status} Percentil {percentil:.2f}% de eval, {percentil_train:.2f} de train")
+    print(f"Score {i} ({name}): {score:.4f} vs Threshold {threshold:.4f} -> {status} Percentil {percentil:.2f}% de eval, {percentil_train:.2f}% de train")
 
 # -------- 1-Class SVM Anomaly Scores --------
 print("\n" + "="*60)
@@ -467,9 +489,9 @@ mu_train = np.load(os.path.join(params.model_dir, machine_type, f'mu_values_{mac
 avg_mu = np.mean(mu_train, axis=0)
 cov_matrix = np.cov(mu_train, rowvar=False)
 inv_cov_matrix = np.linalg.pinv(cov_matrix)
-mah_scores_mu = np.array([mahalanobis(mu_window, avg_mu, inv_cov_matrix) for mu_window in mu.numpy()])
+mah_scores_mu = np.array([mahalanobis(mu_window, avg_mu, inv_cov_matrix) for mu_window in mu.cpu().numpy()])
 print('_________________________')
-print(mu.numpy().shape)
+print(mu.cpu().numpy().shape)
 # as_avg_mu_mah = np.mean(mahalanobis_scores)
 as_avg_mu_mah = mah_scores_mu.mean(keepdims=True)
 as_max_mu_mah = mah_scores_mu.max(keepdims=True)
@@ -486,11 +508,12 @@ as_mu_mah_mah = np.array([mahalanobis(mah_scores_mu, avg_mah, inv_cov_matrix_mah
 se_img = (data_inf-data_train.mean(axis=0))**2 # (sepc inferencia - sepec avg de train)^2
 as_data = np.mean(se_img.reshape(se_img.shape[0], -1), axis=1) # media de cada ventana
 as_data_var = np.var(se_img.reshape(se_img.shape[0], -1), axis=1)
-as_data_ptp = np.ptp(se_img.reshape(se_img.shape[0], -1), axis=1)
+# as_data_ptp = np.ptp(se_img.reshape(se_img.shape[0], -1), axis=1)
 
 as_data = np.mean(as_data.reshape(1,-1),axis=1) # media entre todas las ventanas de cada audio
 as_data_var = np.var(as_data_var.reshape(1,-1),axis=1)
-as_data_ptp = np.var(as_data_ptp.reshape(1,-1),axis=1)
+# as_data_ptp = np.var(as_data_ptp.reshape(1,-1),axis=1)
+as_data_ptp = np.ptp(se_img.reshape(1,-1),axis=1)
 
 if classification:
     losses = np.column_stack((reconst_loss, variance, class_loss))
@@ -521,13 +544,13 @@ if vae:
     oc_svm_kld = joblib.load(os.path.join(oc_svm_path,f'oc_svm_kld_{machine_type}.joblib'))
     oc_svm_kld_dct = joblib.load(os.path.join(oc_svm_path,f'oc_svm_kld_dct_{machine_type}.joblib'))
 
-    as_logvar = -oc_svm_logvar.decision_function(logvar.reshape(1,-1))
-    as_logvar_dct = -oc_svm_logvar_dct.decision_function(dct.dct(logvar.reshape(1,-1,n_elements), norm='ortho').reshape(1,-1))
+    as_logvar = -oc_svm_logvar.decision_function(logvar.cpu().reshape(1,-1))
+    as_logvar_dct = -oc_svm_logvar_dct.decision_function(dct.dct(logvar.cpu().reshape(1,-1,n_elements), norm='ortho').reshape(1,-1))
     as_kld = -oc_svm_kld.decision_function(kld.reshape(1,-1))
     as_kld_dct = -oc_svm_kld_dct.decision_function(dct.dct(torch.from_numpy(kld.reshape(1,-1)),norm='ortho'))
 
-as_mu = -oc_svm_mu.decision_function(mu.reshape(1,-1))
-as_mu_dct = -oc_svm_mu_dct.decision_function((dct.dct(mu.reshape(1,-1,n_elements), norm='ortho')).reshape(1,-1))
+as_mu = -oc_svm_mu.decision_function(mu.cpu().reshape(1,-1))
+as_mu_dct = -oc_svm_mu_dct.decision_function((dct.dct(mu.cpu().reshape(1,-1,n_elements), norm='ortho')).reshape(1,-1))
 
 as_mu_mah = -oc_svm_mu_mah.decision_function(mah_scores_mu.reshape(1,-1))
 as_mu_mah_dct = -oc_svm_mu_mah_dct.decision_function(dct.dct(torch.from_numpy(mah_scores_mu.reshape(1,-1)), norm='ortho'))
@@ -543,16 +566,17 @@ as_pred_1csvm_train = np.loadtxt(as_pred_1csvm_train_path,delimiter=',')
 # ocsvm_thresholds_path = os.path.join(params.results_dir, 'val', machine_type, 'thresholds',
 #                                      f'thresholds_test_1csvm_{machine_type}.csv')
 
-ocsvm_thresholds_path = os.path.join(params.results_dir, 'val' if mode else 'test', machine_type, 'thresholds',
+ocsvm_thresholds_path = os.path.join(params.results_dir, 'val', machine_type, 'thresholds',
                                      f'thresholds_train_1csvm_{machine_type}.csv')
-if os.path.exists(ocsvm_thresholds_path):
+# if os.path.exists(ocsvm_thresholds_path):
+if False:
     ocsvm_thresholds = np.loadtxt(ocsvm_thresholds_path, delimiter=',')
     # ocsvm_thresholds = np.percentile(ocsvm_thresholds, 90, axis=0)  # Usar percentil 90 como umbral
     print(f"Loaded 1-Class SVM thresholds from: {ocsvm_thresholds_path}")
 else:
     print(f"Warning: 1-Class SVM thresholds not found at {ocsvm_thresholds_path}")
     ocsvm_thresholds = np.percentile(as_pred_1csvm_eval, 50, axis=0)
-    ocsvm_thresholds = np.percentile(as_pred_1csvm_train, 80, axis=0)
+    ocsvm_thresholds = np.percentile(as_pred_1csvm_train, 70, axis=0)
 
     # ocsvm_predictions = None
 
@@ -589,7 +613,7 @@ print("1-Class SVM Predictions:")
 for i, (name, score, threshold, pred, percentil, percentil_train) in enumerate(zip(
     ocsvm_score_names, anomaly_scores_ocsvm, ocsvm_thresholds, ocsvm_predictions[0], ocsvm_pred_percentiles, ocsvm_pred_percentiles_train)):
     status = "Anomalous" if pred == 1 else "Normal"
-    print(f"  Score {i+anomaly_scores_cnn.shape[1]} ({name}): {score:.4f} vs Threshold {threshold:.4f} -> {status} Percentil {percentil:.2f}% de eval, {percentil_train:.2f} de train")
+    print(f"  Score {i+anomaly_scores_cnn.shape[1]} ({name}): {score:.4f} vs Threshold {threshold:.4f} -> {status} Percentil {percentil:.2f}% de eval, {percentil_train:.2f}% de train")
 
 # -------- Ensemble Prediction --------
 print("\n" + "="*60)

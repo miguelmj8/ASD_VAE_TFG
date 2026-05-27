@@ -14,7 +14,7 @@ from torchmetrics.functional import structural_similarity_index_measure as ssim
 
 # model_type = # Comprobar flag cnn o lineal en comando
 
-vae = True
+vae = False
 classification = False
 cnn = True
 recon = False # coge el logmelspec reconstruido guardado y lo utiliza como file de entrada
@@ -38,7 +38,7 @@ hop_length = params.feature.hop_length
 n_fft = params.feature.n_fft
 
 audio_dir = "../data/data/valve/test/section_02_target_test_anomaly_0013_v1pat_04_v2pat_05.wav" # poco as_data_ptp
-audio_dir = "../data/data/valve/test/section_02_target_test_normal_0007_v1pat_04_v2pat_05.wav" # mucho as_data_ptp
+# audio_dir = "../data/data/valve/test/section_02_target_test_normal_0007_v1pat_04_v2pat_05.wav" # mucho as_data_ptp
 # audio_dir = "../data/data/valve/train/section_00_source_train_normal_0000_pat_00.wav" # Usado en overfit
 file = ['../data/Features/melspec_311_128/valve/train/section_00_source_train_normal_0000_pat_00.npy']
 # audio_dir = "../data/data/valve/test/section_00_source_test_normal_0007_pat_01.wav"
@@ -47,40 +47,45 @@ file = ['../data/Features/melspec_311_128/valve/train/section_00_source_train_no
 # file = ['../data/Features/melspec_311_128/valve/test/section_00_source_test_anomaly_0048_pat_01.npy']
 machine_type = "valve"
 # audio_dir = "../data/data/bearing/test/section_00_target_test_normal_0005_vel_26.wav" # mucho as_var
-# audio_dir = "../data/data/bearing/test/section_00_source_test_normal_0011_vel_6.wav"
-# file = ['../data/Features/melspec_311_128/bearing/test/section_00_source_test_normal_0011_vel_6.npy']
-# audio_dir = "../data/data/bearing/test/section_00_source_test_anomaly_0000_vel_6.wav"
-# file = ['../data/Features/melspec_311_128/bearing/test/section_00_source_test_anomaly_0000_vel_6.npy']
-# machine_type = "bearing"
+audio_dir = "../data/data/bearing/test/section_02_source_test_anomaly_0027_vel_6_f-n_A.wav"
+audio_dir = "../data/data/bearing/test/section_02_source_test_normal_0004_vel_6_f-n_A.wav"
+# # audio_dir = "../data/data/bearing/test/section_00_source_test_normal_0011_vel_6.wav"
+# # file = ['../data/Features/melspec_311_128/bearing/test/section_00_source_test_normal_0011_vel_6.npy']
+# # audio_dir = "../data/data/bearing/test/section_00_source_test_anomaly_0000_vel_6.wav"
+# # file = ['../data/Features/melspec_311_128/bearing/test/section_00_source_test_anomaly_0000_vel_6.npy']
+machine_type = "bearing"
 audio_dir = "../data/data/gearbox/test/section_01_source_test_anomaly_0017_wt_0.wav" # elevado kld_ptp
 # audio_dir = "../data/data/gearbox/test/section_01_source_test_normal_0010_wt_0.wav" # bajo kld_ptp
 # audio_dir = "../data/data/gearbox/test/section_02_source_test_normal_0036_id_05.wav" # bajo mse
-# audio_dir = "../data/data/gearbox/test/section_02_source_test_anomaly_0012_id_08.wav" # mucho mse
+# audio_dir = "../data/data/gearbox/test/section_02_source_test_anomaly_0012_id_08.wav" # mucho mse, raya decreciente
+# audio_dir = "../data/data/gearbox/test/section_02_source_test_normal_0018_id_08.wav"
 # audio_dir = "../data/data/gearbox/test/section_00_source_test_normal_0031_volt_1.5.wav"
 # file = ['../data/Features/melspec_311_128/gearbox/test/section_00_source_test_normal_0031_volt_1.5.npy']
-# # audio_dir = "../data/data/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.wav"
-# # file = ['../data/Features/melspec_311_128/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.npy']
+# audio_dir = "../data/data/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.wav"
+# file = ['../data/Features/melspec_311_128/gearbox/test/section_00_source_test_anomaly_0018_volt_1.5.npy']
 machine_type = "gearbox"
 # audio_dir = "../data/data/fan/test/section_01_source_test_normal_0009_f-n_A.wav" # mse elevado
 # audio_dir = "../data/data/fan/test/section_01_source_test_normal_0017_f-n_A.wav" # mse bajo
 # # audio_dir = "../data/data/fan/test/section_00_target_test_anomaly_0004_m-n_Z.wav" # mse_var elevado
 # audio_dir = "../data/data/fan/test/section_01_source_test_anomaly_0018_f-n_A.wav" # mse_var bajo en linealaeNC
-# # audio_dir = "../data/data/fan/test/section_00_source_test_anomaly_0047_m-n_W.wav"
-# # file = ['../data/Features/melspec_311_128/fan/test/section_00_source_test_anomaly_0047_m-n_W.npy']
-# # audio_dir = "../data/data/fan/test/section_00_source_test_normal_0030_m-n_W.wav"
-# # file = ['../data/Features/melspec_311_128/fan/test/section_00_source_test_normal_0030_m-n_W.npy']
+# audio_dir = "../data/data/fan/test/section_00_source_test_anomaly_0047_m-n_W.wav"
+# file = ['../data/Features/melspec_311_128/fan/test/section_00_source_test_anomaly_0047_m-n_W.npy']
+# audio_dir = "../data/data/fan/test/section_00_source_test_normal_0030_m-n_W.wav"
+# file = ['../data/Features/melspec_311_128/fan/test/section_00_source_test_normal_0030_m-n_W.npy']
 # machine_type = "fan"
 # audio_dir = "../data/data/slider/test/section_00_source_test_anomaly_0033_vel_900.wav" # ensemble [1 1 1 0 0] (['as_msessim' 'as_mse_max' 'as_var_var' 'as_class_max' 'as_class_ptp']
 # audio_dir = "../data/data/slider/test/section_00_source_test_normal_0018_vel_900.wav"  # ensemble [0 0 0 1 1] (['as_msessim' 'as_mse_max' 'as_var_var' 'as_class_max' 'as_class_ptp']
-# audio_dir = "../data/data/slider/test/section_00_target_test_anomaly_0036_vel_600.wav"
-# file = ['../data/Features/melspec_311_128/slider/test/section_00_target_test_anomaly_0036_vel_600.npy']
-# audio_dir = "../data/data/slider/test/section_00_target_test_normal_0012_vel_600.wav"
-# file = ['../data/Features/melspec_311_128/slider/test/section_00_target_test_normal_0012_vel_600.npy']
+# # audio_dir = "../data/data/slider/test/section_00_target_test_anomaly_0036_vel_600.wav"
+# # file = ['../data/Features/melspec_311_128/slider/test/section_00_target_test_anomaly_0036_vel_600.npy']
+# # audio_dir = "../data/data/slider/test/section_00_target_test_normal_0012_vel_600.wav"
+# # file = ['../data/Features/melspec_311_128/slider/test/section_00_target_test_normal_0012_vel_600.npy']
 # machine_type = "slider"
 # audio_dir = "../data/data/ToyCar/test/section_02_source_test_normal_0045_car_A2_spd_40V_mic_1_noise_1.wav" # kld bajo
 # audio_dir = "../data/data/ToyCar/test/section_02_target_test_anomaly_0032_car_A2_spd_34V_mic_2_noise_2.wav" # kld alto
 # audio_dir = "../data/data/ToyCar/test/section_02_source_test_normal_0031_car_A1_spd_40V_mic_1_noise_1.wav" # mse bajo
 # audio_dir = "../data/data/ToyCar/test/section_02_target_test_normal_0010_car_A1_spd_34V_mic_2_noise_2.wav" # mse elevado
+# audio_dir = "../data/data/ToyCar/test/section_00_source_test_normal_0016_car_A1_spd_34V_mic_1_noise_1.wav" # poco a as_mu
+# # audio_dir = "../data/data/ToyCar/test/section_02_source_test_anomaly_0009_car_A1_spd_34V_mic_1_noise_1.wav" # mucho a as_mu
 # audio_dir = "../data/data/ToyCar/test/section_00_source_test_normal_0034_car_E1_spd_28V_mic_1_noise_1.wav"
 # file = ['../data/Features/melspec_311_128/ToyCar/test/section_00_source_test_normal_0034_car_E1_spd_28V_mic_1_noise_1.npy']
 # audio_dir = "../data/data/ToyCar/test/section_00_source_test_anomaly_0027_car_E1_spd_28V_mic_1_noise_1.wav"
@@ -327,7 +332,7 @@ com.plot_mag_melspectrogram(y, sr,n_fft=n_fft, hop_length=hop_length, n_mels=n_m
 # com.plot_mag_spectrogram(y, sr, n_fft=n_fft, hop_length=hop_length, ax=ax0,title="Spectrogram")
 # com.plot_audio(y,sr=sr,ax=ax0,title='Forma de onda')
 # Dibujar espectrogramas
-fig1, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+fig1, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4))
 # Calcular escala común (vmin y vmax)
 
 logmel_diff = np.abs(logmelspec - reconstructed_spec)
@@ -444,7 +449,10 @@ as_pred_eval = np.loadtxt(as_pred_eval_path,delimiter=',')
 as_pred_train_path = os.path.join(params.model_dir,machine_type,'predictions',f'as_pred_test_{machine_type}.csv')
 as_pred_train = np.loadtxt(as_pred_train_path,delimiter=',')
 # Anomaly scores array (single audio = single row)
-anomaly_scores_cnn = np.array([[as_msessim,as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_mse_min,as_mse_median,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp] + ([as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] if cnn else []) +
+# anomaly_scores_cnn = np.array([([as_msessim] if cnn else []) + [as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_mse_min,as_mse_median,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp] + ([as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] if cnn else []) +
+#                                         ([as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp] if vae else []) +
+#                                         ([as_class,as_class_var,-as_class_var,as_class_max,as_class_min,as_class_ptp] if classification else [])])
+anomaly_scores_cnn = np.array([[as_mse,as_mse_var,-as_mse_var,as_mse_max,-as_mse_max,as_var,-as_var,as_var_var,-as_var_var,as_ptp,-as_ptp] + ([as_cc_loss,as_cc_loss_var,as_cc_loss_max,as_ssim_loss,as_ssim_loss_var,as_ssim_loss_max] if cnn else []) +
                                         ([as_kld,-as_kld_var,-as_kld_max,as_kld_min,as_kld_ptp,-as_kld_ptp] if vae else []) +
                                         ([as_class,as_class_var,-as_class_var,as_class_max,as_class_min,as_class_ptp] if classification else [])])
 
@@ -470,7 +478,10 @@ cnn_pred_percentiles_train = np.mean(1-(as_pred_train > anomaly_scores_cnn), axi
 print("\nCNN-Based Predictions:")
 print(f"Machine Type: {machine_type}")
 
-cnn_score_names = ["as_msessim","as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_mse_min","as_mse_median","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp"] + (["as_cc_loss","as_cc_loss_var","as_cc_loss_max","as_ssim_loss","as_ssim_loss_var","as_ssim_loss_max"] if cnn else []) + \
+# cnn_score_names = (["as_msessim"] if cnn else []) + ["as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_mse_min","as_mse_median","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp"] + (["as_cc_loss","as_cc_loss_var","as_cc_loss_max","as_ssim_loss","as_ssim_loss_var","as_ssim_loss_max"] if cnn else []) + \
+#                 (["as_kld","-as_kld_var","-as_kld_max","as_kld_min","as_kld_ptp","-as_kld_ptp"] if vae else []) + \
+#                 (["as_class","as_class_var","-as_class_var","as_class_max","as_class_min","as_class_ptp"] if classification else [])
+cnn_score_names = ["as_mse","as_mse_var","-as_mse_var","as_mse_max","-as_mse_max","as_var","-as_var","as_var_var","-as_var_var","as_ptp","-as_ptp"] + (["as_cc_loss","as_cc_loss_var","as_cc_loss_max","as_ssim_loss","as_ssim_loss_var","as_ssim_loss_max"] if cnn else []) + \
                 (["as_kld","-as_kld_var","-as_kld_max","as_kld_min","as_kld_ptp","-as_kld_ptp"] if vae else []) + \
                 (["as_class","as_class_var","-as_class_var","as_class_max","as_class_min","as_class_ptp"] if classification else [])
 

@@ -1,41 +1,238 @@
 # ASD VAE Project
 
 ## Descripción
-Proyecto de Variational Autoencoder (VAE) para análisis de datos ASD.
-Utilizamos codigo extraido principalmete de
+
+Proyecto de Autoencoder con distintas variantes para análisis de datos ASD.
+
+El código base utilizado proviene inicialmente de los siguientes repositorios:
+
 - https://github.com/daisukelab/dcase2020_task2_variants/tree/master/2vae_pytorch
 - https://github.com/Kota-Dohi/dcase2022_task2_baseline_ae
 
+---
+
+## Requisitos
+
+- Python 3.11 o superior
+- Dependencias incluidas en `requirements.txt`
+
+---
+
 ## Instalación
+
 ```bash
 pip install -r requirements.txt
 ```
 
-## Uso
-1. Prepara tu conjunto de datos en la carpeta `data/`
-2. Ejecuta el entrenamiento:
-    ```bash
-    python train.py
-    ```
-3. Ejecuta el test
-     ```bash
-    python test.py
-    ```
+---
 
-4. Para utilizar como autoencoder AE (no VAE) es necesario comentar algunas lineas y descomentar otras en vae_model.py, train.py y test.py
+## Estructura del Proyecto
 
-## Estructura
-- `train.py` - Script de entrenamiento
-- `test.py` - Script de inferencia y evaluacion, guarda los resultados en results/
-- `results/` - Carpeta con los resultados
-- `../data/` - Carpeta de datos
-    - `../data/data/` - Carpeta de datos .wav, contiene una carpeta para cada tipo de maquina, y a su vez cada tipo de maquina contiene una carpeta train (solo datos normales) y otra test
-    - `../data/Features/melspec__` - Carpeta de datos .npy, contiene una carpeta para cada tipo de maquina, y a su vez cada tipo de maquina contiene una carpeta train (solo datos normales) y otra test
-- `model/` - Carpeta donde se encuentra vae_model.py, donde se define el modelo
-- `model_output/` - Modelos guardados
+```text
+.
+├── train.py
+├── test.py
+├── trainCNN.py
+├── testCNN.py
+├── trainCNNClass.py
+├── testCNNClass.py
+├── Inference.py
+├── OneClassSVM.py
+├── ensemble.py
+├── da.py
+├── common.py
+├── tsne_view.py
+├── model/
+│   └── vae_model.py
+├── model_output/
+├── results/
+└── data/
+    ├── data/
+    │   └── TipoDeMaquina/
+    │       ├── train/
+    │       └── test/
+    └── Features/
+        └── melspecTamaño/
+            └── TipoDeMaquina/
+                ├── train/
+                └── test/
+```
 
-## Requisitos
-- requirements.txt
-- Python 3.11 al menos
+---
 
+## Preparación de los Datos
 
+1. Coloca los archivos `.wav` en:
+
+```text
+data/data/TipoDeMaquina/
+```
+
+2. Los espectrogramas calculados se almacenarán automáticamente en:
+
+```text
+data/Features/melspecTamaño/TipoDeMaquina/
+```
+
+---
+
+## Entrenamiento
+
+### Modelos Lineales
+
+Entrenamiento de AE o VAE con capas lineales:
+
+```bash
+python train.py
+```
+
+### Modelos Convolucionales
+
+Entrenamiento de AE o VAE con capas convolucionales:
+
+```bash
+python trainCNN.py
+```
+
+### Modelos Híbridos con Clasificación
+
+Entrenamiento de AE o VAE convolucional híbrido con clasificación por tipo de máquina en el espacio latente:
+
+```bash
+python trainCNNClass.py
+```
+
+---
+
+## Evaluación y Test
+
+### Evaluación principal
+
+```bash
+python test.py
+python testCNN.py
+python testCNNClass.py
+```
+
+### Evaluación con métodos adicionales
+
+```bash
+python OneClassSVM.py
+```
+
+Este script permite evaluar utilizando otros métodos además de clasificadores de una sola clase.
+
+---
+
+## Inferencia
+
+```bash
+python Inference.py
+```
+
+Permite:
+
+- Obtener la predicción de un audio individual
+- Visualizar la reconstrucción generada por el modelo
+
+---
+
+## Scripts Auxiliares
+
+### `common.py`
+
+Contiene funciones comunes utilizadas por distintos scripts.
+
+### `tsne_view.py`
+
+Genera visualizaciones t-SNE para el modelo especificado en el fichero de parámetros seleccionado.
+
+### `ensemble.py`
+
+Construye automáticamente un modelo *ensemble* óptimo.
+
+### `da.py`
+
+Modela el espacio latente utilizando BGM (*Bayesian Gaussian Mixture*) y:
+
+- Genera muestras latentes
+- Reconstruye dichas muestras
+- Almacena los resultados generados
+
+---
+
+## Opciones Adicionales
+
+### Aumento de Datos
+
+Para entrenar utilizando *data augmentation*:
+
+```bash
+python train.py -d
+```
+
+### Evaluación con conjunto de pruebas
+
+```bash
+python test.py -e
+```
+
+### Evaluación por resustitución
+
+Evalúa utilizando los propios datos de entrenamiento:
+
+```bash
+python test.py -r
+```
+
+---
+
+## Selección entre AE y VAE
+
+Para utilizar el modelo como:
+
+- Autoencoder (`AE`)
+- Variational Autoencoder (`VAE`)
+
+es necesario modificar la variable:
+
+```python
+vae = True  # o False
+```
+
+en las primeras líneas de los siguientes scripts:
+
+- `train.py`
+- `test.py`
+- `OneClassSVM.py`
+
+---
+
+## Resultados
+
+Los resultados se almacenan en la carpeta:
+
+```text
+results/
+```
+
+### Estructura recomendada
+
+```text
+./results/
+├── CNN o Lineal/
+│   ├── VAE o AE/
+│   │   ├── Class o NoClass/
+│   │   │   └── ParámetrosTrain/
+│   │   │       └── ParámetrosModeloYFeatures/
+```
+
+---
+
+## Modelos Guardados
+
+Los modelos entrenados se almacenan en:
+
+```text
+model_output/
+```

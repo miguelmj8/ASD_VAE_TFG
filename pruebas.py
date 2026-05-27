@@ -13,8 +13,8 @@ params = com.yaml_load('parameters.yaml')
 params = com.yaml_load('parametersCNN.yaml')
 # params = com.yaml_load('parametersCNNClass.yaml')
 
-as_type = 29 # seleccionar que tipo de as representar (0=as_data,1=-as_data_var,2=as_data_ptp...)
-as_type2 = 29
+as_type = 1 # seleccionar que tipo de as representar (0=as_data,1=-as_data_var,2=as_data_ptp...)
+as_type2 = 10
 #28  34   9 -asptp 24 31 2 29
 
 _, _, machine_type, dir_name, da = com.command_line_chk('test')
@@ -95,8 +95,8 @@ as_pred_eval = np.column_stack([as_pred_eval,as_pred_1csvm_eval])
 # thresholds_train_1csvm = np.loadtxt(thresholds_train_1csvm_path,delimiter=',')
 # thresholds = np.concatenate((thresholds_train,thresholds_train_1csvm)) # umbrales cargados
 
-# thresholds = np.percentile(as_pred_train,90,axis=0) # recalculados con percentil
-thresholds = np.percentile(as_pred_eval,50,axis=0) # recalculados con percentil
+thresholds = np.percentile(as_pred_train,85,axis=0) # recalculados con percentil
+# thresholds = np.percentile(as_pred_eval,50,axis=0) # recalculados con percentil
 labels_pred_train = (as_pred_train > thresholds).astype(int) # recalculados con nuevo umbral
 labels_pred_eval = (as_pred_eval > thresholds).astype(int)
 # labels_pred_val = (as_pred_val > thresholds).astype(int)
@@ -151,27 +151,29 @@ idx = np.argmin(np.abs(th - thresholds[as_type]))
 current_fpr = fpr[idx]
 current_tpr = tpr[idx]
 
-# print(f'Audios con mayor {names[as_type]}:\n{files_eval[np.argsort(as_pred_eval[:,as_type])[-5:][::-1]]}')
-# print(f'Audios con menor {names[as_type]}:\n{files_eval[np.argsort(as_pred_eval[:,as_type])[:5]]}')
-# print(f'Audios con {names[as_type]} mediano:\n{files_eval[np.argsort(as_pred_eval[:,as_type])[len(as_pred_eval)//2-2:len(as_pred_eval)//2+3]]}')
+asx = as_pred_eval[:,as_type]
+asy = as_pred_eval[:,as_type2]
+
+print(f'Audios con mayor {names[as_type]}:\n{files_eval[np.argsort(asx)[-150:][::-1]]}')
+# print(f'Audios con menor {names[as_type]}:\n{files_eval[np.argsort(asx)[:20]]}')
+# print(f'Audios con {names[as_type]} mediano:\n{files_eval[np.argsort(asx)[len(as_pred_eval)//2-2:len(as_pred_eval)//2+3]]}')
 
 # correlation_eval = np.corrcoef(labels_pred_eval[:,as_type],labels_pred_eval[:,as_type2])[0,1] # correlacion etiquetas predichas
 # # correlation_eval, _ = spearmanr(labels_pred_eval[:,as_type], labels_pred_eval[:,as_type2])
 
-# correlation_eval = np.corrcoef(as_pred_eval[:,as_type],as_pred_eval[:,as_type2])[0,1] # correlacion as predichas
-correlation_eval, _ = spearmanr(as_pred_eval[:,as_type], as_pred_eval[:,as_type2])
+# correlation_eval = np.corrcoef(asx,asy)[0,1] # correlacion as predichas
+correlation_eval, _ = spearmanr(asx, asy)
 
-print(f'Percentil threshold sobre train: {percentil_train}')
+print(f'Percentil threshold sobre train: {percentil_train:.3f}')
 # print(f'Percentil threshold sobre val: {percentil_val}')
-print(f'Percentil threshold sobre eval: {percentil_eval}')
+print(f'Percentil threshold sobre eval: {percentil_eval:.3f}')
 
-print(f'F1 score eval: {f_scores_eval[as_type]}')
-print(f'Accuracie eval: {accuracies_eval[as_type]}')
-print(f'Precision eval: {precision_eval[as_type]}')
-print(f'Recall eval: {recall_eval[as_type]}')
-print(f'ROC eval: {roc_eval[as_type]}')
-print(f'FPS eval: {current_fpr}')
-print(f'TPR eval: {current_tpr}')
+print(f'F1 score eval: {f_scores_eval[as_type]:.3f}')
+print(f'Accuracie eval: {accuracies_eval[as_type]:.3f}')
+print(f'Precision eval: {precision_eval[as_type]:.3f}')
+print(f'Recall eval: {recall_eval[as_type]:.3f}')
+print(f'ROC eval: {roc_eval[as_type]:.3f}')
+print(f'FPR eval: {current_fpr:.3f}, TPR eval: {current_tpr:.3f}')
 
 print(f'Correlacion entre {names[as_type]} y {names[as_type2]}: {correlation_eval:.3f}')
 
@@ -202,18 +204,26 @@ fig1, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5))
 # fig2, ax2 = plt.subplots(figsize=(8, 6))
 disp = ConfusionMatrixDisplay(confusion_matrix=cm_eval, display_labels=['Normal', 'Anomalous'])
 disp.plot(ax=ax1, colorbar=False)
-ax1.set_title(f'{machine_type} umbral: {percentil_train}%')
-ax2.hist(as_pred_train[:,as_type],bins=100,alpha=1,label='Normal (train set)',color='b',density=True)
-ax2.hist(as_pred_eval[labels_eval==0,as_type],bins=30,alpha=0.8,label='Normal',color='c',density=True)
-ax2.hist(as_pred_eval[labels_eval==1,as_type],bins=30,alpha=0.6,label='Anomalía',color='r',density=True)
+ax1.set_title(f'{machine_type} umbral: {percentil_train:.2f}%')
+ax2.hist(as_pred_train[:,as_type],bins=50,alpha=1,label='Normal (train set)',edgecolor='b',histtype='step',density=True)
+ax2.hist(as_pred_eval[labels_eval==0,as_type],bins=25,alpha=0.8,label='Normal',color='c',density=True)
+ax2.hist(as_pred_eval[labels_eval==1,as_type],bins=25,alpha=0.6,label='Anomalía',color='r',density=True)
 # ax2.hist(as_pred_val[labels_val==0,as_type],bins=25,alpha=0.8,label='Normal',color='b',density=True)
 # ax2.hist(as_pred_val[labels_val==1,as_type],bins=25,alpha=0.8,label='Anomalía',color='r',density=True)
 ax2.axvline(thresholds[as_type],color='black',linestyle='--',label=f'Threshold: {thresholds[as_type]:.3f}')
-# ax2.set_xlim(0.24,1.5)
+# as_normal = 0.5600
+# as_anomalo = 0.7977
+# ax2.axvline(as_normal,color='c',linestyle=':',alpha=0.8,label=f'Ejemplo normal ({as_normal})')
+# ax2.axvline(as_anomalo,color='r',linestyle=':',alpha=0.6,label=f'Ejemplo anomalía ({as_anomalo})')
+
+# ax2.set_xlim(0.37,1.1)
+# print('EJE X LIMITADO')
+
 # ax2.axvline(0, color='red', linestyle='--', label=f'Threshold (offset): 0')
 ax2.legend()
+ax2.set_title(f'Histograma {names[as_type]}')
 fig2, ax20 = plt.subplots(figsize=(8, 6))
-RocCurveDisplay.from_predictions(labels_eval, as_pred_eval[:,as_type], ax=ax20)
+RocCurveDisplay.from_predictions(labels_eval, asx, ax=ax20)
 ax20.plot(
     current_fpr,
     current_tpr,
@@ -241,10 +251,17 @@ ax20.legend(loc="lower right")
 
 # fig4, ax40 = plt.subplots(figsize=(8, 6))
 # ax40.hist([as_pred_eval_source[labels_eval_source==0,as_type],as_pred_eval_target[labels_eval_target==0,as_type]],
-#           bins=10,alpha=1,label=['Normal source','Normal target'],color=['b','c'],density=True)
+#           bins=20,alpha=1,label=['Normal source','Normal target'],color=['b','c'],density=True)
 # ax40.hist([as_pred_eval_source[labels_eval_source==1,as_type],as_pred_eval_target[labels_eval_target==1,as_type]],
-#           bins=10,alpha=0.7,label=['Anomalía source','Anomalía target'],color=['y','r'],density=True)
+#           bins=20,alpha=0.7,label=['Anomalía source','Anomalía target'],color=['y','r'],density=True)
 # ax40.legend()
 # ax40.set_title(f'Histograma para dominio source vs target')
+
+fig5,ax50 = plt.subplots(figsize=(8, 6))
+ax50.scatter(asx,asy,alpha=0.7,color='b',s=30)
+ax50.set_xlabel(f'Predicciones de {names[as_type]}')
+ax50.set_ylabel(f'Predicciones de {names[as_type2]}')
+ax50.set_title(f'Diagrama de dispersión para {machine_type} (Corr. Spearman = {correlation_eval:.3f}')
+ax50.grid(True, linestyle=':', alpha=0.6)
 
 plt.show()

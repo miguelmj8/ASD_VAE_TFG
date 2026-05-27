@@ -1,3 +1,9 @@
+"""
+Training script for CNN VAE/AE models with hierarchical classification.
+
+Trains a convolutional variational autoencoder or autoencoder on mel-spectrograms
+and also learns machine-type and section classification targets.
+"""
 import sys
 import os
 import time
@@ -9,50 +15,42 @@ import common as com
 import model.cnn_vaeClass as cnn_vae
 
 params = com.yaml_load('parametersCNNClass.yaml')
-vae = True # flag para vae (true) o ae (false)
+vae = True
 n_classes = params.model.n_classes
 n_sub = params.model.n_sub
 
 if __name__ == "__main__":
-    # check mode
-    # "development": mode == True
-    # "evaluation": mode == False
-    # input_type: 'wav' or 'npy' (default 'wav')
+
     mode, input_type, machine_type, dir_name, da = com.command_line_chk('train')
     if mode is None:
         sys.exit(-1)
-    # mode = True  # for debug
-    # compute_spec = 1  # for debug
-    # make output directory
+    
     os.makedirs(params.model_dir, exist_ok=True)
 
-    # Selecciona todas las carpetas dentro de data_dir
-    input_type, flag_npy = com.check_npy(params=params, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
+    input_type, flag_npy = com.check_npy(params=params, input_type=input_type, 
+                                         machine_type=machine_type, dir_name=dir_name)
     print(f"Using input type: {input_type}")
     print(f"flag_npy: {flag_npy}")
-    # dirs, flag_npy, input_type = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, dir_name=dir_name)
-    
+
     if machine_type == 'todos':
-        dirs = com.select_dirs(params=params, mode=mode, input_type='wav', machine_type=machine_type, todos=False)
+        dirs = com.select_dirs(params=params, mode=mode, input_type='wav', 
+                               machine_type=machine_type, todos=False)
         machine_types = [os.path.split(td)[1] for td in dirs]
-        dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, todos=True)
+        dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, 
+                               machine_type=machine_type, todos=True)
     else:
-        dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, machine_type=machine_type, todos=False)
+        dirs = com.select_dirs(params=params, mode=mode, input_type=input_type, 
+                               machine_type=machine_type, todos=False)
         
-    # print(f'Flag despues de select dirs {flag_npy}')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dirs = [dirs] if isinstance(dirs, str) else dirs
     for target_dir in dirs:
         if machine_type == "todos":
-            print(f'Tipos de maquina (todos): {machine_types}')
+            print(f'Machine types: {machine_types}')
             target_dir = None
         else:
-            machine_type = os.path.split(target_dir)[1] # Para cada maquina
+            machine_type = os.path.split(target_dir)[1]
 
-        # machine_type = "Todos" # Para todas las maquinas a la vez
-        # if machine_type != "valve":
-        #     print(machine_type)
-        #     continue
         print(f'==== Start training [{machine_type}] with {torch.cuda.device_count()} GPU(s). ====')
 
         # derive model dims from parameters
@@ -101,38 +99,37 @@ if __name__ == "__main__":
         total_params = sum(p.numel() for p in model.parameters())
         print(f'Total number of parameters: {total_params}')
 
-        # optimizer
         optimizer = torch.optim.Adam(model.parameters(), lr=params.train.learning_rate)
-        # Justo después de definir el optimizador
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2, threshold=0.001)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=0.5, patience=2, threshold=0.001)
 
         model.train()
 
-        # m, s = data.mean(), data.std()
-        # data_standarized = (data - m) / (s + 1e-8)  # Estandariza los datos
-        # print(f'Data mean: {m}, std: {s}')
-        if machine_type == 'todos': # estandariza cata tipo de maquina con su propia media y var
-            data_standarized = com.std_mt(params,data,n_windows_per_mt,machine_types,cnn=True)
+        if machine_type == 'todos':
+            data_standarized = com.std_mt(params, data, n_windows_per_mt, 
+                                         machine_types, cnn=True)
         else:
-            m, s = data.mean(axis=0), data.std(axis=0) # Media y varianza para cada pixel
-            data_standarized = (data - m) / (s + 1e-8)  # Estandariza los datos
+            m, s = data.mean(axis=0), data.std(axis=0)
+            data_standarized = (data - m) / (s + 1e-8)
             print(f'Data mean: {m.shape}, std: {s.shape}')
 
-            # Guardar media y desviación estándar para usar en inferencia        
-            std_img_path = os.path.join(params.data_dir, machine_type, f'std_img_{n_frames}_{n_hop_frames}_{machine_type}.npy')
-            mean_img_path = os.path.join(params.data_dir, machine_type, f'mean_img_{n_frames}_{n_hop_frames}_{machine_type}.npy')
+            std_img_path = os.path.join(params.data_dir, machine_type, 
+                                        f'std_img_{n_frames}_{n_hop_frames}_{machine_type}.npy')
+            mean_img_path = os.path.join(params.data_dir, machine_type, 
+                                         f'mean_img_{n_frames}_{n_hop_frames}_{machine_type}.npy')
             if not os.path.exists(std_img_path):
-                os.makedirs(os.path.dirname(std_img_path),exist_ok=True)
-                os.makedirs(os.path.dirname(mean_img_path),exist_ok=True)
+                os.makedirs(os.path.dirname(std_img_path), exist_ok=True)
                 np.save(std_img_path, s)
                 np.save(mean_img_path, m)
-                print(f'Saved mean and std for {machine_type} at {std_img_path}')
+                print(f'Saved mean/std for {machine_type}')
 
-        if da: # si usamos data augmentation
-            # data = np.concatenate((data, add_noise(data)), axis=0) # duplicamos el dataset añadiendo ruido a la mitad de las muestras
-            da_path = os.path.join(os.path.join(f'{params.da_dir}_{str(n_frames)}_{str(n_hop_frames)}', machine_type, 'recon'))
+        if da:
+            da_path = os.path.join(
+                f'{params.da_dir}_{str(n_frames)}_{str(n_hop_frames)}', 
+                machine_type, 'recon')
             file_list = sorted(os.listdir(da_path))
-            augmented_data = np.array([np.load(os.path.join(da_path, f)) for f in file_list])
+            augmented_data = np.array([
+                np.load(os.path.join(da_path, f)) for f in file_list])
             data_standarized = np.concatenate((data_standarized, augmented_data), axis=0)
 
         # print(data_standarized.shape,machine_id.shape,sections_id.shape)
@@ -197,21 +194,24 @@ if __name__ == "__main__":
                     # Print loss components every 100 batches
                     if num_batches % 100 == 0:
                         if vae:
-                            print(f"Batch {num_batches}: reconst={a_RECONST*reconst_loss.item():.4f}, kld={a_KLD*kld.item():.4f}, class={a_CLASS*class_loss.item():.4f}, total={loss.item():.4f}")
+                            print(
+                                f"Batch {num_batches}: reconst={a_RECONST*reconst_loss.item():.4f}, "
+                                f"kld={a_KLD*kld.item():.4f}, class={a_CLASS*class_loss.item():.4f}, "
+                                f"total={loss.item():.4f}")
                         else:
-                            print(f"Batch {num_batches}: reconst={a_RECONST*reconst_loss.item():.4f}, class={a_CLASS*class_loss.item():.4f}, total={loss.item():.4f}")
-                    
+                            print(
+                                f"Batch {num_batches}: reconst={a_RECONST*reconst_loss.item():.4f}, "
+                                f"class={a_CLASS*class_loss.item():.4f}, total={loss.item():.4f}")
                     pbar.update(1)
-            # Al final de cada época en el bucle principal:
             lr = optimizer.param_groups[0]['lr']
-            print(f'Learning rate actual: {lr}')
-            scheduler.step(epoch_loss/num_batches)
+            print(f'Current learning rate: {lr}')
+            scheduler.step(epoch_loss / num_batches)
             all_loss.append(epoch_loss / num_batches)
             all_class_loss.append(epoch_class_loss / num_batches)
             all_reconst_loss.append(epoch_reconst_loss / num_batches)
             if vae:
                 all_kld_loss.append(epoch_kld_loss / num_batches)
-            print(f'====> Epoch: {epoch+1}/{params.train.epochs} Average loss: {all_loss[-1]:.3f}')
+            print(f'Epoch {epoch+1}/{params.train.epochs}, Avg loss: {all_loss[-1]:.3f}')
 
         end_time = time.time()
         time = end_time - start_time

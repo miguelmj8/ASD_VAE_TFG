@@ -44,6 +44,8 @@ pip install -r requirements.txt
 ├── tsne_view.py
 ├── model/
 │   └── vae_model.py
+│   └── cnn_vae.py
+│   └── cnn_vaeClass.py
 ├── model_output/
 ├── results/
 └── data/
@@ -171,7 +173,7 @@ Para entrenar utilizando *data augmentation*:
 python train.py -d
 ```
 
-### Evaluación con conjunto de pruebas
+### Evaluación con conjunto de evaluación
 
 ```bash
 python test.py -e
@@ -202,8 +204,8 @@ vae = True  # o False
 
 en las primeras líneas de los siguientes scripts:
 
-- `train.py`
-- `test.py`
+- `train*.py`
+- `test*.py`
 - `OneClassSVM.py`
 
 ---
